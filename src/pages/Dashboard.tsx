@@ -27,7 +27,7 @@ interface DashboardStats {
   todayRevenue: number;
   totalDoctors: number;
   monthlyRevenue: number;
-  pendingCommission: number;
+  pendingDoctorShare: number;
 }
 
 interface ChartData {
@@ -43,7 +43,7 @@ export default function Dashboard() {
     todayRevenue: 0,
     totalDoctors: 0,
     monthlyRevenue: 0,
-    pendingCommission: 0,
+    pendingDoctorShare: 0,
   });
   const [chartData, setChartData] = useState<ChartData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -55,57 +55,53 @@ export default function Dashboard() {
   const fetchDashboardData = async () => {
     try {
       const today = new Date();
-      const todayStart = startOfDay(today).toISOString();
-      const todayEnd = endOfDay(today).toISOString();
-      const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString();
+      const todayStr = format(today, 'yyyy-MM-dd');
+      const monthStart = format(new Date(today.getFullYear(), today.getMonth(), 1), 'yyyy-MM-dd');
 
       // Fetch today's visits
-      const { data: todayVisits, error: todayError } = await supabase
-        .from('visits')
-        .select('amount, doctor_commission')
-        .gte('created_at', todayStart)
-        .lte('created_at', todayEnd);
+      const { data: todayVisits } = await (supabase
+        .from('patient_visits' as any)
+        .select('total_amount, doctor_share')
+        .eq('visit_date', todayStr) as any);
 
       // Fetch monthly visits
-      const { data: monthlyVisits, error: monthlyError } = await supabase
-        .from('visits')
-        .select('amount, doctor_commission')
-        .gte('created_at', monthStart);
+      const { data: monthlyVisits } = await (supabase
+        .from('patient_visits' as any)
+        .select('total_amount, doctor_share')
+        .gte('visit_date', monthStart) as any);
 
       // Fetch doctors count
-      const { count: doctorsCount } = await supabase
-        .from('doctors')
+      const { count: doctorsCount } = await (supabase
+        .from('doctors' as any)
         .select('*', { count: 'exact', head: true })
-        .eq('is_active', true);
+        .eq('is_active', true) as any);
 
       // Calculate stats
-      const todayRevenue = todayVisits?.reduce((sum, v) => sum + Number(v.amount), 0) || 0;
-      const monthlyRevenue = monthlyVisits?.reduce((sum, v) => sum + Number(v.amount), 0) || 0;
-      const pendingCommission = monthlyVisits?.reduce((sum, v) => sum + Number(v.doctor_commission || 0), 0) || 0;
+      const todayRevenue = (todayVisits as any[])?.reduce((sum, v) => sum + Number(v.total_amount), 0) || 0;
+      const monthlyRevenue = (monthlyVisits as any[])?.reduce((sum, v) => sum + Number(v.total_amount), 0) || 0;
+      const pendingDoctorShare = (monthlyVisits as any[])?.reduce((sum, v) => sum + Number(v.doctor_share || 0), 0) || 0;
 
       setStats({
         todayVisits: todayVisits?.length || 0,
         todayRevenue,
         totalDoctors: doctorsCount || 0,
         monthlyRevenue,
-        pendingCommission,
+        pendingDoctorShare,
       });
 
       // Fetch last 7 days for chart
       const chartDataPromises = Array.from({ length: 7 }, async (_, i) => {
         const date = subDays(today, 6 - i);
-        const dayStart = startOfDay(date).toISOString();
-        const dayEnd = endOfDay(date).toISOString();
+        const dateStr = format(date, 'yyyy-MM-dd');
 
-        const { data } = await supabase
-          .from('visits')
-          .select('amount')
-          .gte('created_at', dayStart)
-          .lte('created_at', dayEnd);
+        const { data } = await (supabase
+          .from('patient_visits' as any)
+          .select('total_amount')
+          .eq('visit_date', dateStr) as any);
 
         return {
           date: format(date, 'MMM dd'),
-          revenue: data?.reduce((sum, v) => sum + Number(v.amount), 0) || 0,
+          revenue: (data as any[])?.reduce((sum, v) => sum + Number(v.total_amount), 0) || 0,
           visits: data?.length || 0,
         };
       });
@@ -291,17 +287,17 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Pending Commission Alert - Admin Only */}
-      {isAdmin && stats.pendingCommission > 0 && (
+      {/* Pending Doctor Share Alert - Admin Only */}
+      {isAdmin && stats.pendingDoctorShare > 0 && (
         <Card className="border-warning/50 bg-warning/5">
           <CardContent className="flex items-center gap-4 p-4">
             <div className="rounded-full bg-warning/20 p-3">
               <IndianRupee className="h-5 w-5 text-warning" />
             </div>
             <div>
-              <p className="font-medium">Pending Doctor Commissions</p>
+              <p className="font-medium">Pending Doctor Shares</p>
               <p className="text-sm text-muted-foreground">
-                {formatCurrency(stats.pendingCommission)} to be settled this month
+                {formatCurrency(stats.pendingDoctorShare)} to be settled this month
               </p>
             </div>
           </CardContent>

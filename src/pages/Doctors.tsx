@@ -25,21 +25,21 @@ import { useToast } from '@/hooks/use-toast';
 import {
   Plus,
   Stethoscope,
-  Phone,
-  Mail,
+  MapPin,
   Percent,
   Loader2,
   Edit,
+  Building2,
 } from 'lucide-react';
 
 interface Doctor {
   id: string;
   name: string;
-  specialty: string | null;
-  phone: string | null;
-  email: string | null;
-  commission_percentage: number;
+  clinic_name: string | null;
+  address: string | null;
+  percentage_share: number;
   is_active: boolean;
+  created_at: string;
 }
 
 export default function Doctors() {
@@ -52,10 +52,9 @@ export default function Doctors() {
 
   const [formData, setFormData] = useState({
     name: '',
-    specialty: '',
-    phone: '',
-    email: '',
-    commission_percentage: '30',
+    clinic_name: '',
+    address: '',
+    percentage_share: '30',
   });
 
   useEffect(() => {
@@ -64,13 +63,13 @@ export default function Doctors() {
 
   const fetchDoctors = async () => {
     try {
-      const { data, error } = await supabase
-        .from('doctors')
+      const { data, error } = await (supabase
+        .from('doctors' as any)
         .select('*')
-        .order('name');
+        .order('name') as any);
 
       if (error) throw error;
-      setDoctors(data || []);
+      setDoctors((data as Doctor[]) || []);
     } catch (error) {
       console.error('Error fetching doctors:', error);
       toast({
@@ -90,22 +89,21 @@ export default function Doctors() {
     try {
       const doctorData = {
         name: formData.name,
-        specialty: formData.specialty || null,
-        phone: formData.phone || null,
-        email: formData.email || null,
-        commission_percentage: parseFloat(formData.commission_percentage),
+        clinic_name: formData.clinic_name || null,
+        address: formData.address || null,
+        percentage_share: parseFloat(formData.percentage_share),
       };
 
       if (editingDoctor) {
-        const { error } = await supabase
-          .from('doctors')
+        const { error } = await (supabase
+          .from('doctors' as any)
           .update(doctorData)
-          .eq('id', editingDoctor.id);
+          .eq('id', editingDoctor.id) as any);
 
         if (error) throw error;
         toast({ title: 'Success', description: 'Doctor updated successfully' });
       } else {
-        const { error } = await supabase.from('doctors').insert(doctorData);
+        const { error } = await (supabase.from('doctors' as any).insert(doctorData) as any);
         if (error) throw error;
         toast({ title: 'Success', description: 'Doctor added successfully' });
       }
@@ -126,10 +124,10 @@ export default function Doctors() {
 
   const toggleDoctorStatus = async (doctor: Doctor) => {
     try {
-      const { error } = await supabase
-        .from('doctors')
+      const { error } = await (supabase
+        .from('doctors' as any)
         .update({ is_active: !doctor.is_active })
-        .eq('id', doctor.id);
+        .eq('id', doctor.id) as any);
 
       if (error) throw error;
       fetchDoctors();
@@ -146,10 +144,9 @@ export default function Doctors() {
   const resetForm = () => {
     setFormData({
       name: '',
-      specialty: '',
-      phone: '',
-      email: '',
-      commission_percentage: '30',
+      clinic_name: '',
+      address: '',
+      percentage_share: '30',
     });
     setEditingDoctor(null);
     setIsAddOpen(false);
@@ -159,10 +156,9 @@ export default function Doctors() {
     setEditingDoctor(doctor);
     setFormData({
       name: doctor.name,
-      specialty: doctor.specialty || '',
-      phone: doctor.phone || '',
-      email: doctor.email || '',
-      commission_percentage: doctor.commission_percentage.toString(),
+      clinic_name: doctor.clinic_name || '',
+      address: doctor.address || '',
+      percentage_share: doctor.percentage_share.toString(),
     });
     setIsAddOpen(true);
   };
@@ -208,56 +204,42 @@ export default function Doctors() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="specialty">Specialty</Label>
+                <Label htmlFor="clinic_name">Clinic Name</Label>
                 <Input
-                  id="specialty"
-                  value={formData.specialty}
+                  id="clinic_name"
+                  value={formData.clinic_name}
                   onChange={(e) =>
-                    setFormData({ ...formData, specialty: e.target.value })
+                    setFormData({ ...formData, clinic_name: e.target.value })
                   }
-                  placeholder="Orthopedics, General Medicine, etc."
+                  placeholder="City Health Clinic"
                 />
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Phone</Label>
-                  <Input
-                    id="phone"
-                    value={formData.phone}
-                    onChange={(e) =>
-                      setFormData({ ...formData, phone: e.target.value })
-                    }
-                    placeholder="+91 98765 43210"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) =>
-                      setFormData({ ...formData, email: e.target.value })
-                    }
-                    placeholder="doctor@clinic.com"
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="address">Address</Label>
+                <Input
+                  id="address"
+                  value={formData.address}
+                  onChange={(e) =>
+                    setFormData({ ...formData, address: e.target.value })
+                  }
+                  placeholder="123 Main Street, City"
+                />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="commission">Commission Percentage (%)</Label>
+                <Label htmlFor="percentage_share">Percentage Share (%)</Label>
                 <Input
-                  id="commission"
+                  id="percentage_share"
                   type="number"
                   min="0"
                   max="100"
                   step="0.01"
-                  value={formData.commission_percentage}
+                  value={formData.percentage_share}
                   onChange={(e) =>
                     setFormData({
                       ...formData,
-                      commission_percentage: e.target.value,
+                      percentage_share: e.target.value,
                     })
                   }
                   required
@@ -306,8 +288,8 @@ export default function Doctors() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Name</TableHead>
-                    <TableHead className="hidden sm:table-cell">Contact</TableHead>
-                    <TableHead>Commission</TableHead>
+                    <TableHead className="hidden sm:table-cell">Clinic / Address</TableHead>
+                    <TableHead>Share %</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="w-[80px]"></TableHead>
                   </TableRow>
@@ -319,27 +301,20 @@ export default function Doctors() {
                       className={!doctor.is_active ? 'opacity-50' : ''}
                     >
                       <TableCell>
-                        <div>
-                          <p className="font-medium">{doctor.name}</p>
-                          {doctor.specialty && (
-                            <p className="text-sm text-muted-foreground">
-                              {doctor.specialty}
-                            </p>
-                          )}
-                        </div>
+                        <p className="font-medium">{doctor.name}</p>
                       </TableCell>
                       <TableCell className="hidden sm:table-cell">
                         <div className="space-y-1">
-                          {doctor.phone && (
+                          {doctor.clinic_name && (
                             <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                              <Phone className="h-3.5 w-3.5" />
-                              {doctor.phone}
+                              <Building2 className="h-3.5 w-3.5" />
+                              {doctor.clinic_name}
                             </div>
                           )}
-                          {doctor.email && (
+                          {doctor.address && (
                             <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                              <Mail className="h-3.5 w-3.5" />
-                              {doctor.email}
+                              <MapPin className="h-3.5 w-3.5" />
+                              {doctor.address}
                             </div>
                           )}
                         </div>
@@ -348,7 +323,7 @@ export default function Doctors() {
                         <div className="flex items-center gap-1">
                           <Percent className="h-3.5 w-3.5 text-muted-foreground" />
                           <span className="font-medium">
-                            {doctor.commission_percentage}%
+                            {doctor.percentage_share}%
                           </span>
                         </div>
                       </TableCell>

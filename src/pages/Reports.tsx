@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -31,16 +30,16 @@ import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 interface DoctorSettlement {
   doctor_id: string;
   doctor_name: string;
-  specialty: string | null;
+  clinic_name: string | null;
   total_referrals: number;
   total_amount: number;
-  total_commission: number;
+  total_doctor_share: number;
 }
 
 interface MonthlySummary {
   totalRevenue: number;
-  totalCommissions: number;
-  netRevenue: number;
+  totalDoctorShare: number;
+  centerRevenue: number;
   totalVisits: number;
 }
 
@@ -48,8 +47,8 @@ export default function Reports() {
   const [settlements, setSettlements] = useState<DoctorSettlement[]>([]);
   const [summary, setSummary] = useState<MonthlySummary>({
     totalRevenue: 0,
-    totalCommissions: 0,
-    netRevenue: 0,
+    totalDoctorShare: 0,
+    centerRevenue: 0,
     totalVisits: 0,
   });
   const [isLoading, setIsLoading] = useState(true);
@@ -75,60 +74,62 @@ export default function Reports() {
       const monthEnd = endOfMonth(monthStart);
 
       // Fetch visits with doctor info for the selected month
-      const { data: visits, error } = await supabase
-        .from('visits')
+      const { data: visits, error } = await (supabase
+        .from('patient_visits' as any)
         .select(`
           id,
-          amount,
-          doctor_commission,
+          total_amount,
+          doctor_share,
+          center_share,
           doctor_id,
           doctors (
             id,
             name,
-            specialty
+            clinic_name
           )
         `)
         .gte('visit_date', format(monthStart, 'yyyy-MM-dd'))
-        .lte('visit_date', format(monthEnd, 'yyyy-MM-dd'));
+        .lte('visit_date', format(monthEnd, 'yyyy-MM-dd')) as any);
 
       if (error) throw error;
 
       // Calculate summary
-      const totalRevenue = visits?.reduce((sum, v) => sum + Number(v.amount), 0) || 0;
-      const totalCommissions = visits?.reduce((sum, v) => sum + Number(v.doctor_commission || 0), 0) || 0;
+      const totalRevenue = (visits as any[])?.reduce((sum, v) => sum + Number(v.total_amount), 0) || 0;
+      const totalDoctorShare = (visits as any[])?.reduce((sum, v) => sum + Number(v.doctor_share || 0), 0) || 0;
+      const centerRevenue = (visits as any[])?.reduce((sum, v) => sum + Number(v.center_share || 0), 0) || 0;
 
       setSummary({
         totalRevenue,
-        totalCommissions,
-        netRevenue: totalRevenue - totalCommissions,
+        totalDoctorShare,
+        centerRevenue,
         totalVisits: visits?.length || 0,
       });
 
       // Group by doctor
       const doctorMap = new Map<string, DoctorSettlement>();
 
-      visits?.forEach((visit) => {
+      (visits as any[])?.forEach((visit) => {
         if (!visit.doctor_id || !visit.doctors) return;
 
         const existing = doctorMap.get(visit.doctor_id);
         if (existing) {
           existing.total_referrals += 1;
-          existing.total_amount += Number(visit.amount);
-          existing.total_commission += Number(visit.doctor_commission || 0);
+          existing.total_amount += Number(visit.total_amount);
+          existing.total_doctor_share += Number(visit.doctor_share || 0);
         } else {
           doctorMap.set(visit.doctor_id, {
             doctor_id: visit.doctor_id,
             doctor_name: visit.doctors.name,
-            specialty: visit.doctors.specialty,
+            clinic_name: visit.doctors.clinic_name,
             total_referrals: 1,
-            total_amount: Number(visit.amount),
-            total_commission: Number(visit.doctor_commission || 0),
+            total_amount: Number(visit.total_amount),
+            total_doctor_share: Number(visit.doctor_share || 0),
           });
         }
       });
 
       setSettlements(Array.from(doctorMap.values()).sort((a, b) => 
-        b.total_commission - a.total_commission
+        b.total_doctor_share - a.total_doctor_share
       ));
     } catch (error) {
       console.error('Error fetching settlement data:', error);
@@ -152,7 +153,7 @@ export default function Reports() {
         <div>
           <h1 className="page-title">Reports & Settlements</h1>
           <p className="text-muted-foreground">
-            Monthly revenue and doctor commission summaries
+            Monthly revenue and doctor share summaries
           </p>
         </div>
         <Select value={selectedMonth} onValueChange={setSelectedMonth}>
@@ -190,14 +191,14 @@ export default function Reports() {
         <Card className="stat-card">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Doctor Commissions
+              Doctor Shares
             </CardTitle>
             <div className="rounded-lg bg-chart-4/10 p-2">
               <Stethoscope className="h-4 w-4 text-chart-4" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(summary.totalCommissions)}</div>
+            <div className="text-2xl font-bold">{formatCurrency(summary.totalDoctorShare)}</div>
             <p className="text-xs text-muted-foreground">{settlements.length} doctors</p>
           </CardContent>
         </Card>
@@ -205,15 +206,15 @@ export default function Reports() {
         <Card className="stat-card">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Net Revenue
+              Center Revenue
             </CardTitle>
             <div className="rounded-lg bg-primary/10 p-2">
               <TrendingUp className="h-4 w-4 text-primary" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(summary.netRevenue)}</div>
-            <p className="text-xs text-muted-foreground">After commissions</p>
+            <div className="text-2xl font-bold">{formatCurrency(summary.centerRevenue)}</div>
+            <p className="text-xs text-muted-foreground">After doctor shares</p>
           </CardContent>
         </Card>
 
@@ -265,7 +266,7 @@ export default function Reports() {
                     <TableHead>Doctor</TableHead>
                     <TableHead className="text-right">Referrals</TableHead>
                     <TableHead className="text-right">Total Billing</TableHead>
-                    <TableHead className="text-right">Commission Due</TableHead>
+                    <TableHead className="text-right">Share Due</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -274,9 +275,9 @@ export default function Reports() {
                       <TableCell>
                         <div>
                           <p className="font-medium">{settlement.doctor_name}</p>
-                          {settlement.specialty && (
+                          {settlement.clinic_name && (
                             <p className="text-sm text-muted-foreground">
-                              {settlement.specialty}
+                              {settlement.clinic_name}
                             </p>
                           )}
                         </div>
@@ -288,7 +289,7 @@ export default function Reports() {
                         {formatCurrency(settlement.total_amount)}
                       </TableCell>
                       <TableCell className="text-right font-semibold text-success">
-                        {formatCurrency(settlement.total_commission)}
+                        {formatCurrency(settlement.total_doctor_share)}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -302,7 +303,7 @@ export default function Reports() {
                       {formatCurrency(settlements.reduce((sum, s) => sum + s.total_amount, 0))}
                     </TableCell>
                     <TableCell className="text-right text-success">
-                      {formatCurrency(summary.totalCommissions)}
+                      {formatCurrency(summary.totalDoctorShare)}
                     </TableCell>
                   </TableRow>
                 </TableBody>
