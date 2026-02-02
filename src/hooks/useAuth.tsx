@@ -5,10 +5,18 @@ import { useNavigate } from 'react-router-dom';
 
 type AppRole = 'admin' | 'receptionist';
 
+interface Profile {
+  id: string;
+  full_name: string | null;
+  role: AppRole;
+  created_at: string;
+}
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   role: AppRole | null;
+  profile: Profile | null;
   isLoading: boolean;
   isAdmin: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
@@ -21,24 +29,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [role, setRole] = useState<AppRole | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchUserRole = async (userId: string) => {
+  const fetchUserProfile = async (userId: string) => {
     try {
       const { data, error } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', userId)
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
         .single();
 
       if (error) {
-        console.error('Error fetching user role:', error);
+        console.error('Error fetching user profile:', error);
         return null;
       }
 
-      return data?.role as AppRole;
+      return data as unknown as Profile;
     } catch (err) {
-      console.error('Error in fetchUserRole:', err);
+      console.error('Error in fetchUserProfile:', err);
       return null;
     }
   };
@@ -53,11 +62,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (session?.user) {
           // Use setTimeout to avoid potential race conditions
           setTimeout(async () => {
-            const userRole = await fetchUserRole(session.user.id);
-            setRole(userRole);
+            const userProfile = await fetchUserProfile(session.user.id);
+            setProfile(userProfile);
+            setRole(userProfile?.role ?? null);
             setIsLoading(false);
           }, 0);
         } else {
+          setProfile(null);
           setRole(null);
           setIsLoading(false);
         }
@@ -70,8 +81,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(session?.user ?? null);
 
       if (session?.user) {
-        const userRole = await fetchUserRole(session.user.id);
-        setRole(userRole);
+        const userProfile = await fetchUserProfile(session.user.id);
+        setProfile(userProfile);
+        setRole(userProfile?.role ?? null);
       }
       setIsLoading(false);
     });
@@ -95,6 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
     setUser(null);
     setSession(null);
+    setProfile(null);
     setRole(null);
   };
 
@@ -102,6 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user,
     session,
     role,
+    profile,
     isLoading,
     isAdmin: role === 'admin',
     signIn,

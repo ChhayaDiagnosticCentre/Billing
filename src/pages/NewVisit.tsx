@@ -5,7 +5,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import {
   Select,
@@ -30,31 +29,21 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Check, ChevronsUpDown, UserPlus, ScanLine, IndianRupee } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
 
 interface Patient {
   id: string;
   name: string;
-  phone: string | null;
 }
 
 interface Doctor {
   id: string;
   name: string;
-  specialty: string | null;
-  commission_percentage: number;
+  clinic_name: string | null;
+  percentage_share: number;
 }
 
-const XRAY_TYPES = [
-  'Chest X-Ray',
-  'Abdominal X-Ray',
-  'Spine X-Ray',
-  'Extremity X-Ray',
-  'Skull X-Ray',
-  'Dental X-Ray',
-  'Mammography',
-  'Fluoroscopy',
-  'Other',
-];
+type PaymentReceiver = 'CENTER' | 'DOCTOR';
 
 export default function NewVisit() {
   const { user } = useAuth();
@@ -69,15 +58,16 @@ export default function NewVisit() {
   const [patientOpen, setPatientOpen] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [selectedDoctor, setSelectedDoctor] = useState<string>('');
-  const [xrayType, setXrayType] = useState('');
-  const [amount, setAmount] = useState('');
-  const [notes, setNotes] = useState('');
+  const [visitDate, setVisitDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [xrayViews, setXrayViews] = useState('1');
+  const [totalAmount, setTotalAmount] = useState('');
+  const [feesReceivedBy, setFeesReceivedBy] = useState<PaymentReceiver>('CENTER');
 
-  // Get selected doctor for commission display
+  // Get selected doctor for share display
   const selectedDoctorData = doctors.find((d) => d.id === selectedDoctor);
-  const estimatedCommission = selectedDoctorData && amount
-    ? (parseFloat(amount) * selectedDoctorData.commission_percentage / 100).toFixed(2)
-    : null;
+  const doctorPercentage = selectedDoctorData?.percentage_share || 0;
+  const doctorShare = totalAmount ? (parseFloat(totalAmount) * doctorPercentage / 100) : 0;
+  const centerShare = totalAmount ? parseFloat(totalAmount) - doctorShare : 0;
 
   useEffect(() => {
     fetchData();
@@ -86,15 +76,15 @@ export default function NewVisit() {
   const fetchData = async () => {
     try {
       const [patientsRes, doctorsRes] = await Promise.all([
-        supabase.from('patients').select('id, name, phone').order('name'),
-        supabase.from('doctors').select('id, name, specialty, commission_percentage').eq('is_active', true).order('name'),
+        (supabase.from('patients' as any).select('id, name').order('name') as any),
+        (supabase.from('doctors' as any).select('id, name, clinic_name, percentage_share').eq('is_active', true).order('name') as any),
       ]);
 
       if (patientsRes.error) throw patientsRes.error;
       if (doctorsRes.error) throw doctorsRes.error;
 
-      setPatients(patientsRes.data || []);
-      setDoctors(doctorsRes.data || []);
+      setPatients((patientsRes.data as Patient[]) || []);
+      setDoctors((doctorsRes.data as Doctor[]) || []);
     } catch (error) {
       console.error('Error fetching data:', error);
       toast({
@@ -122,14 +112,20 @@ export default function NewVisit() {
     setIsSubmitting(true);
 
     try {
-      const { error } = await supabase.from('visits').insert({
+      const visitData = {
         patient_id: selectedPatient.id,
         doctor_id: selectedDoctor || null,
-        xray_type: xrayType,
-        amount: parseFloat(amount),
-        notes: notes || null,
-        created_by: user?.id,
-      });
+        visit_date: visitDate,
+        xray_views: parseInt(xrayViews),
+        total_amount: parseFloat(totalAmount),
+        doctor_percentage: selectedDoctor ? doctorPercentage : null,
+        doctor_share: selectedDoctor ? doctorShare : 0,
+        center_share: centerShare,
+        fees_received_by: feesReceivedBy,
+        created_by: user?.id || null,
+      };
+
+      const { error } = await (supabase.from('patient_visits' as any).insert(visitData) as any);
 
       if (error) throw error;
 
@@ -188,9 +184,7 @@ export default function NewVisit() {
                     aria-expanded={patientOpen}
                     className="w-full justify-between"
                   >
-                    {selectedPatient
-                      ? `${selectedPatient.name}${selectedPatient.phone ? ` (${selectedPatient.phone})` : ''}`
-                      : 'Select patient...'}
+                    {selectedPatient ? selectedPatient.name : 'Select patient...'}
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
@@ -212,7 +206,7 @@ export default function NewVisit() {
                         {patients.map((patient) => (
                           <CommandItem
                             key={patient.id}
-                            value={`${patient.name} ${patient.phone || ''}`}
+                            value={patient.name}
                             onSelect={() => {
                               setSelectedPatient(patient);
                               setPatientOpen(false);
@@ -226,14 +220,7 @@ export default function NewVisit() {
                                   : 'opacity-0'
                               )}
                             />
-                            <div>
-                              <span className="font-medium">{patient.name}</span>
-                              {patient.phone && (
-                                <span className="ml-2 text-muted-foreground">
-                                  {patient.phone}
-                                </span>
-                              )}
-                            </div>
+                            <span className="font-medium">{patient.name}</span>
                           </CommandItem>
                         ))}
                       </CommandGroup>
@@ -254,53 +241,51 @@ export default function NewVisit() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="xray-type">X-Ray Type *</Label>
-              <Select value={xrayType} onValueChange={setXrayType} required>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select X-ray type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {XRAY_TYPES.map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {type}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="visit-date">Visit Date *</Label>
+                <Input
+                  id="visit-date"
+                  type="date"
+                  value={visitDate}
+                  onChange={(e) => setVisitDate(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="xray-views">X-Ray Views *</Label>
+                <Input
+                  id="xray-views"
+                  type="number"
+                  min="1"
+                  value={xrayViews}
+                  onChange={(e) => setXrayViews(e.target.value)}
+                  required
+                />
+              </div>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="doctor">Referring Doctor (Optional)</Label>
               <Select value={selectedDoctor} onValueChange={setSelectedDoctor}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select doctor" />
+                  <SelectValue placeholder="Select doctor (walk-in if none)" />
                 </SelectTrigger>
                 <SelectContent>
                   {doctors.map((doctor) => (
                     <SelectItem key={doctor.id} value={doctor.id}>
                       {doctor.name}
-                      {doctor.specialty && (
+                      {doctor.clinic_name && (
                         <span className="text-muted-foreground">
                           {' '}
-                          - {doctor.specialty}
+                          - {doctor.clinic_name}
                         </span>
                       )}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="notes">Notes</Label>
-              <Textarea
-                id="notes"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Additional notes..."
-                rows={3}
-              />
             </div>
           </CardContent>
         </Card>
@@ -314,28 +299,51 @@ export default function NewVisit() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="amount">Amount (₹) *</Label>
-              <Input
-                id="amount"
-                type="number"
-                min="0"
-                step="0.01"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="Enter amount"
-                required
-              />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="amount">Total Amount (₹) *</Label>
+                <Input
+                  id="amount"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={totalAmount}
+                  onChange={(e) => setTotalAmount(e.target.value)}
+                  placeholder="Enter amount"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="received-by">Fees Received By *</Label>
+                <Select value={feesReceivedBy} onValueChange={(v) => setFeesReceivedBy(v as PaymentReceiver)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="CENTER">Center</SelectItem>
+                    <SelectItem value="DOCTOR">Doctor</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
-            {selectedDoctorData && estimatedCommission && (
-              <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
-                <p className="text-sm text-muted-foreground">
-                  Doctor Commission ({selectedDoctorData.commission_percentage}%)
-                </p>
-                <p className="text-lg font-semibold text-primary">
-                  ₹{estimatedCommission}
-                </p>
+            {selectedDoctorData && totalAmount && (
+              <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">
+                    Doctor Share ({doctorPercentage}%)
+                  </span>
+                  <span className="font-semibold text-primary">
+                    ₹{doctorShare.toFixed(2)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Center Share</span>
+                  <span className="font-semibold text-success">
+                    ₹{centerShare.toFixed(2)}
+                  </span>
+                </div>
               </div>
             )}
           </CardContent>

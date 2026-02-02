@@ -20,24 +20,13 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Search, Users, Phone, MapPin, Loader2 } from 'lucide-react';
+import { Plus, Search, Users, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface Patient {
   id: string;
   name: string;
-  phone: string | null;
-  age: number | null;
-  gender: string | null;
-  address: string | null;
   created_at: string;
 }
 
@@ -52,10 +41,6 @@ export default function Patients() {
   // Form state
   const [formData, setFormData] = useState({
     name: '',
-    phone: '',
-    age: '',
-    gender: '',
-    address: '',
   });
 
   useEffect(() => {
@@ -64,13 +49,13 @@ export default function Patients() {
 
   const fetchPatients = async () => {
     try {
-      const { data, error } = await supabase
-        .from('patients')
+      const { data, error } = await (supabase
+        .from('patients' as any)
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false }) as any);
 
       if (error) throw error;
-      setPatients(data || []);
+      setPatients((data as Patient[]) || []);
     } catch (error) {
       console.error('Error fetching patients:', error);
       toast({
@@ -88,13 +73,9 @@ export default function Patients() {
     setIsSubmitting(true);
 
     try {
-      const { error } = await supabase.from('patients').insert({
+      const { error } = await (supabase.from('patients' as any).insert({
         name: formData.name,
-        phone: formData.phone || null,
-        age: formData.age ? parseInt(formData.age) : null,
-        gender: formData.gender || null,
-        address: formData.address || null,
-      });
+      }) as any);
 
       if (error) throw error;
 
@@ -103,7 +84,7 @@ export default function Patients() {
         description: 'Patient added successfully',
       });
 
-      setFormData({ name: '', phone: '', age: '', gender: '', address: '' });
+      setFormData({ name: '' });
       setIsAddOpen(false);
       fetchPatients();
     } catch (error) {
@@ -118,10 +99,8 @@ export default function Patients() {
     }
   };
 
-  const filteredPatients = patients.filter(
-    (patient) =>
-      patient.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      patient.phone?.includes(searchQuery)
+  const filteredPatients = patients.filter((patient) =>
+    patient.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
@@ -159,65 +138,6 @@ export default function Patients() {
                 />
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Phone</Label>
-                  <Input
-                    id="phone"
-                    value={formData.phone}
-                    onChange={(e) =>
-                      setFormData({ ...formData, phone: e.target.value })
-                    }
-                    placeholder="+91 98765 43210"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="age">Age</Label>
-                  <Input
-                    id="age"
-                    type="number"
-                    min="0"
-                    max="150"
-                    value={formData.age}
-                    onChange={(e) =>
-                      setFormData({ ...formData, age: e.target.value })
-                    }
-                    placeholder="Age"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="gender">Gender</Label>
-                <Select
-                  value={formData.gender}
-                  onValueChange={(value) =>
-                    setFormData({ ...formData, gender: value })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select gender" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="male">Male</SelectItem>
-                    <SelectItem value="female">Female</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="address">Address</Label>
-                <Input
-                  id="address"
-                  value={formData.address}
-                  onChange={(e) =>
-                    setFormData({ ...formData, address: e.target.value })
-                  }
-                  placeholder="Enter address"
-                />
-              </div>
-
               <div className="flex justify-end gap-2 pt-4">
                 <Button
                   type="button"
@@ -244,7 +164,7 @@ export default function Patients() {
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search by name or phone..."
+              placeholder="Search by name..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10"
@@ -279,9 +199,6 @@ export default function Patients() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Name</TableHead>
-                    <TableHead className="hidden sm:table-cell">Phone</TableHead>
-                    <TableHead className="hidden md:table-cell">Age/Gender</TableHead>
-                    <TableHead className="hidden lg:table-cell">Address</TableHead>
                     <TableHead>Added</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -289,40 +206,6 @@ export default function Patients() {
                   {filteredPatients.map((patient) => (
                     <TableRow key={patient.id}>
                       <TableCell className="font-medium">{patient.name}</TableCell>
-                      <TableCell className="hidden sm:table-cell">
-                        {patient.phone ? (
-                          <div className="flex items-center gap-1.5 text-muted-foreground">
-                            <Phone className="h-3.5 w-3.5" />
-                            {patient.phone}
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        {patient.age || patient.gender ? (
-                          <div className="flex items-center gap-2">
-                            {patient.age && <span>{patient.age}y</span>}
-                            {patient.gender && (
-                              <Badge variant="outline" className="capitalize">
-                                {patient.gender}
-                              </Badge>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="hidden lg:table-cell">
-                        {patient.address ? (
-                          <div className="flex items-center gap-1.5 text-muted-foreground">
-                            <MapPin className="h-3.5 w-3.5 shrink-0" />
-                            <span className="truncate max-w-[200px]">{patient.address}</span>
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
                       <TableCell className="text-muted-foreground">
                         {format(new Date(patient.created_at), 'MMM d, yyyy')}
                       </TableCell>
