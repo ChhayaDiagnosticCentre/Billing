@@ -50,6 +50,7 @@ export default function NewVisit() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const isAdmin = role === 'admin';
+  const canEditShares = role === 'admin' || role === 'receptionist';
 
   const [patients, setPatients] = useState<Patient[]>([]);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
@@ -96,8 +97,8 @@ export default function NewVisit() {
   // Reset manual shares when doctor or amount changes (if not overridden)
   useEffect(() => {
     if (!isShareOverridden) {
-      setManualDoctorShare(calculatedDoctorShare.toFixed(2));
-      setManualCenterShare(calculatedCenterShare.toFixed(2));
+      setManualDoctorShare(Math.round(calculatedDoctorShare).toString());
+      setManualCenterShare(Math.round(calculatedCenterShare).toString());
     }
   }, [selectedDoctor, totalAmount, calculatedDoctorShare, calculatedCenterShare, isShareOverridden]);
 
@@ -172,8 +173,8 @@ export default function NewVisit() {
     setIsShareOverridden(true);
     // Auto-calculate center share
     const amount = parseFloat(totalAmount) || 0;
-    const docShare = parseFloat(value) || 0;
-    setManualCenterShare((amount - docShare).toFixed(2));
+    const docShare = parseInt(value) || 0;
+    setManualCenterShare(Math.round(amount - docShare).toString());
   };
 
   const handleCenterShareChange = (value: string) => {
@@ -181,14 +182,14 @@ export default function NewVisit() {
     setIsShareOverridden(true);
     // Auto-calculate doctor share
     const amount = parseFloat(totalAmount) || 0;
-    const cenShare = parseFloat(value) || 0;
-    setManualDoctorShare((amount - cenShare).toFixed(2));
+    const cenShare = parseInt(value) || 0;
+    setManualDoctorShare(Math.round(amount - cenShare).toString());
   };
 
   const resetToCalculatedShares = () => {
     setIsShareOverridden(false);
-    setManualDoctorShare(calculatedDoctorShare.toFixed(2));
-    setManualCenterShare(calculatedCenterShare.toFixed(2));
+    setManualDoctorShare(Math.round(calculatedDoctorShare).toString());
+    setManualCenterShare(Math.round(calculatedCenterShare).toString());
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -213,8 +214,8 @@ export default function NewVisit() {
         xray_views: parseInt(xrayViews),
         total_amount: parseFloat(totalAmount),
         doctor_percentage: selectedDoctor ? doctorPercentage : null,
-        doctor_share: selectedDoctor ? doctorShare : 0,
-        center_share: centerShare,
+        doctor_share: selectedDoctor ? Math.round(doctorShare) : 0,
+        center_share: Math.round(centerShare),
         fees_received_by: feesReceivedBy,
         created_by: user?.id || null,
       };
@@ -449,7 +450,7 @@ export default function NewVisit() {
               <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">Revenue Split</span>
-                  {isAdmin && isShareOverridden && (
+                  {canEditShares && isShareOverridden && (
                     <Button
                       type="button"
                       variant="ghost"
@@ -463,8 +464,8 @@ export default function NewVisit() {
                   )}
                 </div>
 
-                {isAdmin ? (
-                  // Editable shares for admin
+                {canEditShares ? (
+                  // Editable shares for admin and receptionist
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1">
                       <Label className="text-xs text-muted-foreground flex items-center gap-1">
@@ -476,7 +477,7 @@ export default function NewVisit() {
                         <Input
                           type="number"
                           min="0"
-                          step="0.01"
+                          step="1"
                           value={manualDoctorShare}
                           onChange={(e) => handleDoctorShareChange(e.target.value)}
                           className="pl-7"
@@ -493,7 +494,7 @@ export default function NewVisit() {
                         <Input
                           type="number"
                           min="0"
-                          step="0.01"
+                          step="1"
                           value={manualCenterShare}
                           onChange={(e) => handleCenterShareChange(e.target.value)}
                           className="pl-7"
@@ -502,26 +503,26 @@ export default function NewVisit() {
                     </div>
                   </div>
                 ) : (
-                  // Read-only display for non-admin
+                  // Read-only display for non-staff
                   <>
                     <div className="flex justify-between">
                       <span className="text-sm text-muted-foreground">
                         Doctor Share ({doctorPercentage}%)
                       </span>
                       <span className="font-semibold text-primary">
-                        ₹{doctorShare.toFixed(2)}
+                        ₹{Math.round(doctorShare)}
                       </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-sm text-muted-foreground">Center Share</span>
                       <span className="font-semibold text-success">
-                        ₹{centerShare.toFixed(2)}
+                        ₹{Math.round(centerShare)}
                       </span>
                     </div>
                   </>
                 )}
 
-                {isShareOverridden && isAdmin && (
+                {isShareOverridden && canEditShares && (
                   <p className="text-xs text-warning flex items-center gap-1 pt-1">
                     <span>*</span> Values manually adjusted
                   </p>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -19,8 +20,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Search, Calendar, Loader2, IndianRupee, User, Stethoscope, Eye } from 'lucide-react';
+import { Search, Calendar, Loader2, IndianRupee, User, Stethoscope, Eye, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface Visit {
@@ -45,10 +56,14 @@ interface Visit {
 
 export default function RecentEntries() {
   const navigate = useNavigate();
+  const { role } = useAuth();
+  const isAdmin = role === 'admin';
   const [visits, setVisits] = useState<Visit[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null);
+  const [visitToDelete, setVisitToDelete] = useState<Visit | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -91,6 +106,37 @@ export default function RecentEntries() {
   const filteredVisits = visits.filter((visit) =>
     visit.patient?.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const handleDeleteVisit = async () => {
+    if (!visitToDelete) return;
+    
+    setIsDeleting(true);
+    try {
+      const { error } = await (supabase
+        .from('patient_visits' as any)
+        .delete()
+        .eq('id', visitToDelete.id) as any);
+
+      if (error) throw error;
+
+      setVisits((prev) => prev.filter((v) => v.id !== visitToDelete.id));
+      setVisitToDelete(null);
+      
+      toast({
+        title: 'Success',
+        description: 'Visit record deleted successfully',
+      });
+    } catch (error) {
+      console.error('Error deleting visit:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to delete visit record',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -152,7 +198,7 @@ export default function RecentEntries() {
                     <TableHead>Date</TableHead>
                     <TableHead>X-Ray Views</TableHead>
                     <TableHead className="text-right">Amount</TableHead>
-                    <TableHead className="w-[50px]"></TableHead>
+                    <TableHead className="w-[80px]"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -175,7 +221,22 @@ export default function RecentEntries() {
                         ₹{visit.total_amount.toFixed(2)}
                       </TableCell>
                       <TableCell>
-                        <Eye className="h-4 w-4 text-muted-foreground" />
+                        <div className="flex items-center gap-1">
+                          <Eye className="h-4 w-4 text-muted-foreground" />
+                          {isAdmin && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setVisitToDelete(visit);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -259,6 +320,35 @@ export default function RecentEntries() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!visitToDelete} onOpenChange={() => setVisitToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Visit Record</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this visit record for{' '}
+              <span className="font-medium">{visitToDelete?.patient?.name || 'Unknown'}</span>?
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteVisit}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Trash2 className="h-4 w-4 mr-2" />
+              )}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
