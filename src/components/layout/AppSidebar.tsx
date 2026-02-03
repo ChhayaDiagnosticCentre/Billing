@@ -28,7 +28,7 @@ import {
 
 const mainNavItems = [
   { title: 'Dashboard', url: '/', icon: LayoutDashboard },
-  { title: 'Patients', url: '/patients', icon: Users },
+  { title: 'Recent Entries', url: '/recent', icon: Users },
   { title: 'New Visit', url: '/visits/new', icon: UserPlus },
 ];
 

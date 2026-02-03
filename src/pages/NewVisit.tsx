@@ -27,7 +27,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Check, ChevronsUpDown, UserPlus, ScanLine, IndianRupee } from 'lucide-react';
+import { Loader2, Check, ChevronsUpDown, UserPlus, ScanLine, IndianRupee, Plus, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 
@@ -46,9 +46,10 @@ interface Doctor {
 type PaymentReceiver = 'CENTER' | 'DOCTOR';
 
 export default function NewVisit() {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const isAdmin = role === 'admin';
 
   const [patients, setPatients] = useState<Patient[]>([]);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
@@ -63,15 +64,42 @@ export default function NewVisit() {
   const [totalAmount, setTotalAmount] = useState('');
   const [feesReceivedBy, setFeesReceivedBy] = useState<PaymentReceiver>('CENTER');
 
+  // Inline patient addition
+  const [newPatientName, setNewPatientName] = useState('');
+  const [isAddingPatient, setIsAddingPatient] = useState(false);
+
+  // Editable shares for admin
+  const [manualDoctorShare, setManualDoctorShare] = useState<string>('');
+  const [manualCenterShare, setManualCenterShare] = useState<string>('');
+  const [isShareOverridden, setIsShareOverridden] = useState(false);
+
   // Get selected doctor for share display
   const selectedDoctorData = doctors.find((d) => d.id === selectedDoctor);
   const doctorPercentage = selectedDoctorData?.percentage_share || 0;
-  const doctorShare = totalAmount ? (parseFloat(totalAmount) * doctorPercentage / 100) : 0;
-  const centerShare = totalAmount ? parseFloat(totalAmount) - doctorShare : 0;
+  
+  // Calculated values
+  const calculatedDoctorShare = totalAmount ? (parseFloat(totalAmount) * doctorPercentage / 100) : 0;
+  const calculatedCenterShare = totalAmount ? parseFloat(totalAmount) - calculatedDoctorShare : 0;
+
+  // Actual values (manual override or calculated)
+  const doctorShare = isShareOverridden && manualDoctorShare !== '' 
+    ? parseFloat(manualDoctorShare) || 0 
+    : calculatedDoctorShare;
+  const centerShare = isShareOverridden && manualCenterShare !== '' 
+    ? parseFloat(manualCenterShare) || 0 
+    : calculatedCenterShare;
 
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Reset manual shares when doctor or amount changes (if not overridden)
+  useEffect(() => {
+    if (!isShareOverridden) {
+      setManualDoctorShare(calculatedDoctorShare.toFixed(2));
+      setManualCenterShare(calculatedCenterShare.toFixed(2));
+    }
+  }, [selectedDoctor, totalAmount, calculatedDoctorShare, calculatedCenterShare, isShareOverridden]);
 
   const fetchData = async () => {
     try {
@@ -95,6 +123,72 @@ export default function NewVisit() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleAddPatient = async () => {
+    if (!newPatientName.trim()) {
+      toast({
+        title: 'Error',
+        description: 'Please enter a patient name',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsAddingPatient(true);
+
+    try {
+      const { data, error } = await (supabase
+        .from('patients' as any)
+        .insert({ name: newPatientName.trim() })
+        .select('id, name')
+        .single() as any);
+
+      if (error) throw error;
+
+      const newPatient = data as Patient;
+      setPatients((prev) => [...prev, newPatient].sort((a, b) => a.name.localeCompare(b.name)));
+      setSelectedPatient(newPatient);
+      setNewPatientName('');
+
+      toast({
+        title: 'Success',
+        description: `Patient "${newPatient.name}" added successfully`,
+      });
+    } catch (error) {
+      console.error('Error adding patient:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to add patient',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsAddingPatient(false);
+    }
+  };
+
+  const handleDoctorShareChange = (value: string) => {
+    setManualDoctorShare(value);
+    setIsShareOverridden(true);
+    // Auto-calculate center share
+    const amount = parseFloat(totalAmount) || 0;
+    const docShare = parseFloat(value) || 0;
+    setManualCenterShare((amount - docShare).toFixed(2));
+  };
+
+  const handleCenterShareChange = (value: string) => {
+    setManualCenterShare(value);
+    setIsShareOverridden(true);
+    // Auto-calculate doctor share
+    const amount = parseFloat(totalAmount) || 0;
+    const cenShare = parseFloat(value) || 0;
+    setManualDoctorShare((amount - cenShare).toFixed(2));
+  };
+
+  const resetToCalculatedShares = () => {
+    setIsShareOverridden(false);
+    setManualDoctorShare(calculatedDoctorShare.toFixed(2));
+    setManualCenterShare(calculatedCenterShare.toFixed(2));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -134,7 +228,7 @@ export default function NewVisit() {
         description: 'Visit recorded successfully',
       });
 
-      navigate('/patients');
+      navigate('/');
     } catch (error) {
       console.error('Error creating visit:', error);
       toast({
@@ -192,16 +286,7 @@ export default function NewVisit() {
                   <Command>
                     <CommandInput placeholder="Search patient..." />
                     <CommandList>
-                      <CommandEmpty>
-                        No patient found.
-                        <Button
-                          variant="link"
-                          className="mt-2 w-full"
-                          onClick={() => navigate('/patients')}
-                        >
-                          Add new patient
-                        </Button>
-                      </CommandEmpty>
+                      <CommandEmpty>No patient found.</CommandEmpty>
                       <CommandGroup>
                         {patients.map((patient) => (
                           <CommandItem
@@ -228,6 +313,38 @@ export default function NewVisit() {
                   </Command>
                 </PopoverContent>
               </Popover>
+            </div>
+
+            {/* Inline Patient Addition */}
+            <div className="space-y-2">
+              <Label>Quick Add Patient</Label>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Enter new patient name..."
+                  value={newPatientName}
+                  onChange={(e) => setNewPatientName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddPatient();
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={handleAddPatient}
+                  disabled={isAddingPatient || !newPatientName.trim()}
+                  className="shrink-0"
+                >
+                  {isAddingPatient ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Plus className="h-4 w-4" />
+                  )}
+                  <span className="ml-1">Add</span>
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -329,21 +446,86 @@ export default function NewVisit() {
             </div>
 
             {selectedDoctorData && totalAmount && (
-              <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">
-                    Doctor Share ({doctorPercentage}%)
-                  </span>
-                  <span className="font-semibold text-primary">
-                    ₹{doctorShare.toFixed(2)}
-                  </span>
+              <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Revenue Split</span>
+                  {isAdmin && isShareOverridden && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={resetToCalculatedShares}
+                      className="h-7 text-xs gap-1"
+                    >
+                      <RotateCcw className="h-3 w-3" />
+                      Reset
+                    </Button>
+                  )}
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Center Share</span>
-                  <span className="font-semibold text-success">
-                    ₹{centerShare.toFixed(2)}
-                  </span>
-                </div>
+
+                {isAdmin ? (
+                  // Editable shares for admin
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                        Doctor Share ({doctorPercentage}%)
+                        {isShareOverridden && <span className="text-warning">*</span>}
+                      </Label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">₹</span>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={manualDoctorShare}
+                          onChange={(e) => handleDoctorShareChange(e.target.value)}
+                          className="pl-7"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                        Center Share
+                        {isShareOverridden && <span className="text-warning">*</span>}
+                      </Label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">₹</span>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={manualCenterShare}
+                          onChange={(e) => handleCenterShareChange(e.target.value)}
+                          className="pl-7"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  // Read-only display for non-admin
+                  <>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">
+                        Doctor Share ({doctorPercentage}%)
+                      </span>
+                      <span className="font-semibold text-primary">
+                        ₹{doctorShare.toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Center Share</span>
+                      <span className="font-semibold text-success">
+                        ₹{centerShare.toFixed(2)}
+                      </span>
+                    </div>
+                  </>
+                )}
+
+                {isShareOverridden && isAdmin && (
+                  <p className="text-xs text-warning flex items-center gap-1 pt-1">
+                    <span>*</span> Values manually adjusted
+                  </p>
+                )}
               </div>
             )}
           </CardContent>
