@@ -9,7 +9,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
-import Patients from "./pages/Patients";
+import RecentEntries from "./pages/RecentEntries";
 import NewVisit from "./pages/NewVisit";
 import Doctors from "./pages/Doctors";
 import Reports from "./pages/Reports";
@@ -39,11 +39,11 @@ const App = () => (
               }
             />
             <Route
-              path="/patients"
+              path="/recent"
               element={
                 <ProtectedRoute>
                   <AppLayout>
-                    <Patients />
+                    <RecentEntries />
                   </AppLayout>
                 </ProtectedRoute>
               }
