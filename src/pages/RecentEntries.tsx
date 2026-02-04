@@ -316,7 +316,7 @@ export default function RecentEntries() {
                 <div className="flex justify-between pt-2 border-t">
                   <span className="text-sm text-muted-foreground">Received By</span>
                   <Badge variant={selectedVisit.fees_received_by === 'CENTER' ? 'default' : 'secondary'}>
-                    {selectedVisit.fees_received_by}
+                    {selectedVisit.fees_received_by === 'CENTER' ? 'Center' : 'Doctor'}
                   </Badge>
                 </div>
               </div>

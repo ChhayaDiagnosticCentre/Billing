@@ -26,6 +26,9 @@ import {
   Stethoscope,
   TrendingUp,
   Loader2,
+  ArrowUpRight,
+  ArrowDownLeft,
+  Users,
 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 
@@ -189,32 +192,47 @@ export default function Reports() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Card className="stat-card">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Money need to give to doctor
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Card className="stat-card border-primary/20 bg-primary/5">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center justify-between">
+              Net: Give to Doctor
+              <ArrowUpRight className="h-4 w-4 text-primary" />
             </CardTitle>
-            <div className="rounded-lg bg-chart-4/10 p-2">
-              <Stethoscope className="h-4 w-4 text-chart-4" />
-            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-primary">{formatCurrency(summary.moneyToGiveToDoctor)}</div>
+            <div className="text-2xl font-bold text-primary">
+              {formatCurrency(Math.max(0, summary.moneyToGiveToDoctor - summary.moneyToReceiveFromDoctor))}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">Final amount to pay</p>
           </CardContent>
         </Card>
 
-        <Card className="stat-card">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Money should be recieved from doctor
+        <Card className="stat-card border-success/20 bg-success/5">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center justify-between">
+              Net: Receive from Doctor
+              <ArrowDownLeft className="h-4 w-4 text-success" />
             </CardTitle>
-            <div className="rounded-lg bg-success/10 p-2">
-              <TrendingUp className="h-4 w-4 text-success" />
-            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-success">{formatCurrency(summary.moneyToReceiveFromDoctor)}</div>
+            <div className="text-2xl font-bold text-success">
+              {formatCurrency(Math.max(0, summary.moneyToReceiveFromDoctor - summary.moneyToGiveToDoctor))}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">Final amount to collect</p>
+          </CardContent>
+        </Card>
+
+        <Card className="stat-card bg-muted/30">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center justify-between">
+              Total Referrals
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{summary.totalVisits}</div>
+            <p className="text-xs text-muted-foreground mt-1">This month</p>
           </CardContent>
         </Card>
       </div>

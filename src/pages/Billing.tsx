@@ -286,7 +286,7 @@ export default function Billing() {
     // Subtitle with timestamp
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
-    doc.text(`Generated on: ${format(new Date(), 'dd MMM yyyy, hh:mm a')}`, pageWidth / 2, 28, { align: 'center' });
+    doc.text(`Generated on: ${format(new Date(), 'dd MMM yyyy, hh:mm a')}`, pageWidth / 2, 32, { align: 'center' });
 
     // Filters
     doc.setFontSize(12);
@@ -340,11 +340,25 @@ export default function Billing() {
     doc.setFontSize(10);
 
     const summaryStartY = finalY + 8;
-    doc.text(`Money need to give to doctor: ${formatCurrencyPDF(settlement.ownerOwesToDoctor)}`, 14, summaryStartY);
-    doc.text(`Money should be recieved from doctor: ${formatCurrencyPDF(settlement.doctorOwesToOwner)}`, 14, summaryStartY + 8);
+    doc.text(`Doctor's Share (Collected by Center): ${formatCurrencyPDF(settlement.ownerOwesToDoctor)}`, 14, summaryStartY);
+    doc.text(`Center's Share (Collected by Doctor): ${formatCurrencyPDF(settlement.doctorOwesToOwner)}`, 14, summaryStartY + 8);
+
+    // Net
+    doc.setFont('helvetica', 'bold');
+    if (settlement.ownerOwesToDoctor >= settlement.doctorOwesToOwner) {
+      doc.text(`Final Net Settlement: Give ${formatCurrencyPDF(settlement.ownerOwesToDoctor - settlement.doctorOwesToOwner)} to Doctor`, 14, summaryStartY + 18);
+    } else {
+      doc.text(`Final Net Settlement: Receive ${formatCurrencyPDF(settlement.doctorOwesToOwner - settlement.ownerOwesToDoctor)} from Doctor`, 14, summaryStartY + 18);
+    }
+
+    // Final Thank You
+    doc.setFontSize(14);
+    doc.setFont('helvetica');
+    doc.text('Thank You!', pageWidth / 2, summaryStartY + 30, { align: 'center' });
 
     // Save PDF
-    const filename = `billing-${getSelectedDoctorName().replace(/\s+/g, '-')}-${selectedMonth || format(new Date(), 'yyyy-MM')}.pdf`;
+    const timestamp = format(new Date(), 'yyyyMMdd-HHmmss');
+    const filename = `billing-${getSelectedDoctorName().replace(/\s+/g, '-')}-${timestamp}.pdf`;
     doc.save(filename);
     toast.success('PDF downloaded successfully');
   };
@@ -562,11 +576,9 @@ export default function Billing() {
                         <TableCell className="text-right font-medium text-success">
                           {formatCurrency(visit.doctor_share)}
                         </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={visit.fees_received_by === 'center' ? 'default' : 'secondary'}
-                          >
-                            {visit.fees_received_by === 'center' ? 'Owner' : 'Doctor'}
+                        <TableCell className="text-right">
+                          <Badge variant={visit.fees_received_by === 'CENTER' ? 'default' : 'secondary'}>
+                            {visit.fees_received_by === 'CENTER' ? 'Center' : 'Doctor'}
                           </Badge>
                         </TableCell>
                       </TableRow>
@@ -601,7 +613,7 @@ export default function Billing() {
                 </p>
               </div>
               <div className="rounded-lg bg-muted/50 p-4">
-                <p className="text-sm text-muted-foreground">Owner Received</p>
+                <p className="text-sm text-muted-foreground">Center Received</p>
                 <p className="text-xl font-semibold">{formatCurrency(settlement.ownerReceivedTotal)}</p>
                 <p className="text-xs text-muted-foreground">
                   Owes {formatCurrency(settlement.ownerOwesToDoctor)} to Doctor
@@ -611,7 +623,7 @@ export default function Billing() {
                 <p className="text-sm text-muted-foreground">Doctor Received</p>
                 <p className="text-xl font-semibold">{formatCurrency(settlement.doctorReceivedTotal)}</p>
                 <p className="text-xs text-muted-foreground">
-                  Owes {formatCurrency(settlement.doctorOwesToOwner)} to Owner
+                  Owes {formatCurrency(settlement.doctorOwesToOwner)} to Center
                 </p>
               </div>
             </div>
@@ -636,12 +648,12 @@ export default function Billing() {
                   <p className="text-sm font-medium text-muted-foreground">Net Settlement</p>
                   {settlement.settlementDirection === 'pay_doctor' && (
                     <p className="text-xl font-bold text-destructive">
-                      Owner needs to pay {formatCurrency(settlement.netSettlement)} to {getSelectedDoctorName()}
+                      Center needs to pay {formatCurrency(settlement.netSettlement)} to {getSelectedDoctorName()}
                     </p>
                   )}
                   {settlement.settlementDirection === 'receive_from_doctor' && (
                     <p className="text-xl font-bold text-success">
-                      {getSelectedDoctorName()} needs to pay {formatCurrency(settlement.netSettlement)} to Owner
+                      {getSelectedDoctorName()} needs to pay {formatCurrency(settlement.netSettlement)} to Center
                     </p>
                   )}
                   {settlement.settlementDirection === 'settled' && (
