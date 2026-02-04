@@ -130,6 +130,7 @@ export default function Dashboard() {
       icon: Users,
       color: 'text-primary',
       bgColor: 'bg-primary/10',
+      adminOnly: false,
     },
     {
       title: "Today's Revenue",
@@ -137,6 +138,7 @@ export default function Dashboard() {
       icon: IndianRupee,
       color: 'text-success',
       bgColor: 'bg-success/10',
+      adminOnly: true,
     },
     {
       title: 'Active Doctors',

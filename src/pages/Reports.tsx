@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -37,18 +39,25 @@ interface DoctorSettlement {
 }
 
 interface MonthlySummary {
-  totalRevenue: number;
-  totalDoctorShare: number;
-  centerRevenue: number;
+  moneyToGiveToDoctor: number;
+  moneyToReceiveFromDoctor: number;
   totalVisits: number;
 }
 
 export default function Reports() {
+  const { isAdmin, role } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (role && !isAdmin) {
+      navigate('/');
+    }
+  }, [role, isAdmin, navigate]);
+
   const [settlements, setSettlements] = useState<DoctorSettlement[]>([]);
   const [summary, setSummary] = useState<MonthlySummary>({
-    totalRevenue: 0,
-    totalDoctorShare: 0,
-    centerRevenue: 0,
+    moneyToGiveToDoctor: 0,
+    moneyToReceiveFromDoctor: 0,
     totalVisits: 0,
   });
   const [isLoading, setIsLoading] = useState(true);
@@ -81,6 +90,7 @@ export default function Reports() {
           total_amount,
           doctor_share,
           center_share,
+          fees_received_by,
           doctor_id,
           doctors (
             id,
@@ -94,14 +104,21 @@ export default function Reports() {
       if (error) throw error;
 
       // Calculate summary
-      const totalRevenue = (visits as any[])?.reduce((sum, v) => sum + Number(v.total_amount), 0) || 0;
-      const totalDoctorShare = (visits as any[])?.reduce((sum, v) => sum + Number(v.doctor_share || 0), 0) || 0;
-      const centerRevenue = (visits as any[])?.reduce((sum, v) => sum + Number(v.center_share || 0), 0) || 0;
+      const moneyToGiveToDoctor = (visits as any[])?.reduce((sum, v) => {
+        return (v.fees_received_by || '').toUpperCase() === 'CENTER'
+          ? sum + Number(v.doctor_share || 0)
+          : sum;
+      }, 0) || 0;
+
+      const moneyToReceiveFromDoctor = (visits as any[])?.reduce((sum, v) => {
+        return (v.fees_received_by || '').toUpperCase() === 'DOCTOR'
+          ? sum + Number(v.center_share || 0)
+          : sum;
+      }, 0) || 0;
 
       setSummary({
-        totalRevenue,
-        totalDoctorShare,
-        centerRevenue,
+        moneyToGiveToDoctor,
+        moneyToReceiveFromDoctor,
         totalVisits: visits?.length || 0,
       });
 
@@ -128,7 +145,7 @@ export default function Reports() {
         }
       });
 
-      setSettlements(Array.from(doctorMap.values()).sort((a, b) => 
+      setSettlements(Array.from(doctorMap.values()).sort((a, b) =>
         b.total_doctor_share - a.total_doctor_share
       ));
     } catch (error) {
@@ -172,68 +189,32 @@ export default function Reports() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2">
         <Card className="stat-card">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Revenue
-            </CardTitle>
-            <div className="rounded-lg bg-success/10 p-2">
-              <IndianRupee className="h-4 w-4 text-success" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(summary.totalRevenue)}</div>
-            <p className="text-xs text-muted-foreground">{summary.totalVisits} visits</p>
-          </CardContent>
-        </Card>
-
-        <Card className="stat-card">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Doctor Shares
+              Money need to give to doctor
             </CardTitle>
             <div className="rounded-lg bg-chart-4/10 p-2">
               <Stethoscope className="h-4 w-4 text-chart-4" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(summary.totalDoctorShare)}</div>
-            <p className="text-xs text-muted-foreground">{settlements.length} doctors</p>
+            <div className="text-2xl font-bold text-primary">{formatCurrency(summary.moneyToGiveToDoctor)}</div>
           </CardContent>
         </Card>
 
         <Card className="stat-card">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Center Revenue
+              Money should be recieved from doctor
             </CardTitle>
-            <div className="rounded-lg bg-primary/10 p-2">
-              <TrendingUp className="h-4 w-4 text-primary" />
+            <div className="rounded-lg bg-success/10 p-2">
+              <TrendingUp className="h-4 w-4 text-success" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(summary.centerRevenue)}</div>
-            <p className="text-xs text-muted-foreground">After doctor shares</p>
-          </CardContent>
-        </Card>
-
-        <Card className="stat-card">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Avg. per Visit
-            </CardTitle>
-            <div className="rounded-lg bg-chart-3/10 p-2">
-              <FileText className="h-4 w-4 text-chart-3" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {summary.totalVisits > 0
-                ? formatCurrency(summary.totalRevenue / summary.totalVisits)
-                : '₹0'}
-            </div>
-            <p className="text-xs text-muted-foreground">Per X-ray</p>
+            <div className="text-2xl font-bold text-success">{formatCurrency(summary.moneyToReceiveFromDoctor)}</div>
           </CardContent>
         </Card>
       </div>
@@ -303,7 +284,7 @@ export default function Reports() {
                       {formatCurrency(settlements.reduce((sum, s) => sum + s.total_amount, 0))}
                     </TableCell>
                     <TableCell className="text-right text-success">
-                      {formatCurrency(summary.totalDoctorShare)}
+                      {formatCurrency(settlements.reduce((sum, s) => sum + s.total_doctor_share, 0))}
                     </TableCell>
                   </TableRow>
                 </TableBody>

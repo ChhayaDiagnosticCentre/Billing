@@ -13,7 +13,7 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  
+
   const { signIn } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -43,8 +43,8 @@ export default function Login() {
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg">
             <ScanLine className="h-8 w-8" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground">X-Ray Center</h1>
-          <p className="text-muted-foreground">Management System</p>
+          <h1 className="text-2xl font-bold text-foreground">Chhaya Diagnostic Center</h1>
+          <p className="text-muted-foreground">Billing System</p>
         </div>
 
         <Card className="shadow-lg">

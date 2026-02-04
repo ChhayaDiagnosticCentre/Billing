@@ -109,7 +109,7 @@ export default function RecentEntries() {
 
   const handleDeleteVisit = async () => {
     if (!visitToDelete) return;
-    
+
     setIsDeleting(true);
     try {
       const { error } = await (supabase
@@ -121,7 +121,7 @@ export default function RecentEntries() {
 
       setVisits((prev) => prev.filter((v) => v.id !== visitToDelete.id));
       setVisitToDelete(null);
-      
+
       toast({
         title: 'Success',
         description: 'Visit record deleted successfully',
@@ -301,14 +301,18 @@ export default function RecentEntries() {
                   <span className="text-sm text-muted-foreground">Total Amount</span>
                   <span className="font-semibold">₹{selectedVisit.total_amount.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Doctor Share</span>
-                  <span className="font-medium text-primary">₹{selectedVisit.doctor_share.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Center Share</span>
-                  <span className="font-medium text-success">₹{selectedVisit.center_share.toFixed(2)}</span>
-                </div>
+                {isAdmin && (
+                  <>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Doctor Share</span>
+                      <span className="font-medium text-primary">₹{selectedVisit.doctor_share.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Center Share</span>
+                      <span className="font-medium text-success">₹{selectedVisit.center_share.toFixed(2)}</span>
+                    </div>
+                  </>
+                )}
                 <div className="flex justify-between pt-2 border-t">
                   <span className="text-sm text-muted-foreground">Received By</span>
                   <Badge variant={selectedVisit.fees_received_by === 'CENTER' ? 'default' : 'secondary'}>

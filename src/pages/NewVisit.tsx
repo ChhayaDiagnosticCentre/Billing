@@ -50,7 +50,7 @@ export default function NewVisit() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const isAdmin = role === 'admin';
-  const canEditShares = role === 'admin' || role === 'receptionist';
+  const canEditShares = role === 'admin';
 
   const [patients, setPatients] = useState<Patient[]>([]);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
@@ -77,17 +77,17 @@ export default function NewVisit() {
   // Get selected doctor for share display
   const selectedDoctorData = doctors.find((d) => d.id === selectedDoctor);
   const doctorPercentage = selectedDoctorData?.percentage_share || 0;
-  
+
   // Calculated values
   const calculatedDoctorShare = totalAmount ? (parseFloat(totalAmount) * doctorPercentage / 100) : 0;
   const calculatedCenterShare = totalAmount ? parseFloat(totalAmount) - calculatedDoctorShare : 0;
 
   // Actual values (manual override or calculated)
-  const doctorShare = isShareOverridden && manualDoctorShare !== '' 
-    ? parseFloat(manualDoctorShare) || 0 
+  const doctorShare = isShareOverridden && manualDoctorShare !== ''
+    ? parseFloat(manualDoctorShare) || 0
     : calculatedDoctorShare;
-  const centerShare = isShareOverridden && manualCenterShare !== '' 
-    ? parseFloat(manualCenterShare) || 0 
+  const centerShare = isShareOverridden && manualCenterShare !== ''
+    ? parseFloat(manualCenterShare) || 0
     : calculatedCenterShare;
 
   useEffect(() => {
@@ -446,7 +446,7 @@ export default function NewVisit() {
               </div>
             </div>
 
-            {selectedDoctorData && totalAmount && (
+            {isAdmin && selectedDoctorData && totalAmount && (
               <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">Revenue Split</span>

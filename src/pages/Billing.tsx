@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -92,12 +93,20 @@ interface SettlementSummary {
 }
 
 export default function Billing() {
-  const { role } = useAuth();
+  const { role, isAdmin } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (role && !isAdmin) {
+      navigate('/');
+    }
+  }, [role, isAdmin, navigate]);
+
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [visits, setVisits] = useState<VisitRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedDoctor, setSelectedDoctor] = useState<string>('');
-  
+
   // Date filters
   const [fromDate, setFromDate] = useState<Date | undefined>(startOfMonth(new Date()));
   const [toDate, setToDate] = useState<Date | undefined>(endOfMonth(new Date()));
@@ -129,11 +138,7 @@ export default function Billing() {
 
   const fetchDoctors = async () => {
     try {
-      const { data, error } = await supabase
-        .from('doctors')
-        .select('id, name, specialty')
-        .eq('is_active', true)
-        .order('name');
+      const { data, error } = await (supabase.from('doctors' as any).select('id, name, clinic_name, percentage_share').eq('is_active', true).order('name') as any)
 
       if (error) throw error;
       setDoctors((data || []).map(d => ({ ...d, clinic_name: d.specialty })));
@@ -145,7 +150,7 @@ export default function Billing() {
 
   const fetchVisits = async () => {
     if (!selectedDoctor) return;
-    
+
     setIsLoading(true);
     try {
       let startDate: string;
@@ -181,7 +186,7 @@ export default function Billing() {
         .order('visit_date', { ascending: true }) as any);
 
       if (error) throw error;
-      
+
       const formattedVisits = (data || []).map((visit: any) => ({
         id: visit.id,
         visit_date: visit.visit_date,
@@ -189,7 +194,7 @@ export default function Billing() {
         total_amount: Number(visit.total_amount) || 0,
         doctor_share: Number(visit.doctor_share) || 0,
         center_share: Number(visit.center_share) || 0,
-        fees_received_by: visit.fees_received_by || 'center',
+        fees_received_by: (visit.fees_received_by || 'CENTER').toUpperCase(),
         patient: visit.patient,
         doctor: visit.doctor,
       }));
@@ -207,19 +212,19 @@ export default function Billing() {
   const settlement = useMemo<SettlementSummary>(() => {
     const totalAmount = visits.reduce((sum, v) => sum + v.total_amount, 0);
     const totalDoctorShare = visits.reduce((sum, v) => sum + v.doctor_share, 0);
-    
-    // When owner receives payment, they owe doctor's share to doctor
-    const ownerReceivedVisits = visits.filter(v => v.fees_received_by === 'center');
+
+    // When center receives payment, they owe doctor's share to doctor
+    const ownerReceivedVisits = visits.filter(v => v.fees_received_by === 'CENTER');
     const ownerOwesToDoctor = ownerReceivedVisits.reduce((sum, v) => sum + v.doctor_share, 0);
     const ownerReceivedTotal = ownerReceivedVisits.reduce((sum, v) => sum + v.total_amount, 0);
-    
-    // When doctor receives payment, they owe center's share to owner
-    const doctorReceivedVisits = visits.filter(v => v.fees_received_by === 'doctor');
+
+    // When doctor receives payment, they owe center's share to center
+    const doctorReceivedVisits = visits.filter(v => v.fees_received_by === 'DOCTOR');
     const doctorOwesToOwner = doctorReceivedVisits.reduce((sum, v) => sum + v.center_share, 0);
     const doctorReceivedTotal = doctorReceivedVisits.reduce((sum, v) => sum + v.total_amount, 0);
-    
+
     const netSettlement = ownerOwesToDoctor - doctorOwesToOwner;
-    
+
     let settlementDirection: 'pay_doctor' | 'receive_from_doctor' | 'settled' = 'settled';
     if (netSettlement > 0) {
       settlementDirection = 'pay_doctor';
@@ -247,6 +252,12 @@ export default function Billing() {
     }).format(amount);
   };
 
+  const formatCurrencyPDF = (amount: number) => {
+    return `Rs. ${new Intl.NumberFormat('en-IN', {
+      maximumFractionDigits: 0,
+    }).format(amount)}`;
+  };
+
   const getSelectedDoctorName = () => {
     const doctor = doctors.find(d => d.id === selectedDoctor);
     return doctor?.name || 'Unknown';
@@ -266,35 +277,34 @@ export default function Billing() {
   const generatePDF = () => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
-    
+
     // Title
     doc.setFontSize(20);
     doc.setFont('helvetica', 'bold');
     doc.text('Billing & Settlement Report', pageWidth / 2, 20, { align: 'center' });
-    
+
     // Subtitle with timestamp
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
     doc.text(`Generated on: ${format(new Date(), 'dd MMM yyyy, hh:mm a')}`, pageWidth / 2, 28, { align: 'center' });
-    
-    // Filters applied
+
+    // Filters
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
-    doc.text('Filters Applied:', 14, 40);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
     doc.text(`Doctor: ${getSelectedDoctorName()}`, 14, 48);
     doc.text(`Period: ${getFilterPeriodText()}`, 14, 54);
-    
+
     // Table
     const tableData = visits.map((visit, index) => [
       index + 1,
       format(parseISO(visit.visit_date), 'dd/MM/yyyy'),
       visit.patient?.name || 'Unknown',
       visit.xray_type,
-      formatCurrency(visit.total_amount),
-      formatCurrency(visit.doctor_share),
-      visit.fees_received_by === 'center' ? 'Owner' : 'Doctor',
+      formatCurrencyPDF(visit.total_amount),
+      formatCurrencyPDF(visit.doctor_share),
+      visit.fees_received_by === 'CENTER' || visit.fees_received_by === 'center' ? 'Center' : 'Doctor',
     ]);
 
     autoTable(doc, {
@@ -302,7 +312,7 @@ export default function Billing() {
       head: [['Sr.', 'Date', 'Patient Name', 'View', 'Total', "Doctor's Share", 'Received By']],
       body: tableData,
       styles: { fontSize: 9 },
-      headStyles: { fillColor: [30, 117, 117] },
+      headStyles: { fillColor: [234, 88, 12] }, // Professional Orange (Tailwind orange-600)
       columnStyles: {
         0: { cellWidth: 12 },
         1: { cellWidth: 24 },
@@ -312,33 +322,26 @@ export default function Billing() {
         5: { cellWidth: 28, halign: 'right' },
         6: { cellWidth: 22 },
       },
+      didParseCell: (data) => {
+        if (data.section === 'head' && (data.column.index === 4 || data.column.index === 5)) {
+          data.cell.styles.halign = 'right';
+        }
+      },
     });
 
     // Settlement Summary
     const finalY = (doc as any).lastAutoTable.finalY + 10;
-    
+
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
     doc.text('Settlement Summary', 14, finalY);
-    
+
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
-    
+
     const summaryStartY = finalY + 8;
-    doc.text(`Total Billing: ${formatCurrency(settlement.totalAmount)}`, 14, summaryStartY);
-    doc.text(`Total Doctor's Share: ${formatCurrency(settlement.totalDoctorShare)}`, 14, summaryStartY + 6);
-    doc.text(`Owner Received: ${formatCurrency(settlement.ownerReceivedTotal)} (owes ${formatCurrency(settlement.ownerOwesToDoctor)} to Doctor)`, 14, summaryStartY + 12);
-    doc.text(`Doctor Received: ${formatCurrency(settlement.doctorReceivedTotal)} (owes ${formatCurrency(settlement.doctorOwesToOwner)} to Owner)`, 14, summaryStartY + 18);
-    
-    // Net settlement
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
-    const netText = settlement.settlementDirection === 'pay_doctor'
-      ? `Net: Owner to pay Doctor: ${formatCurrency(settlement.netSettlement)}`
-      : settlement.settlementDirection === 'receive_from_doctor'
-      ? `Net: Doctor to pay Owner: ${formatCurrency(settlement.netSettlement)}`
-      : 'Net: Settled (No amount due)';
-    doc.text(netText, 14, summaryStartY + 28);
+    doc.text(`Money need to give to doctor: ${formatCurrencyPDF(settlement.ownerOwesToDoctor)}`, 14, summaryStartY);
+    doc.text(`Money should be recieved from doctor: ${formatCurrencyPDF(settlement.doctorOwesToOwner)}`, 14, summaryStartY + 8);
 
     // Save PDF
     const filename = `billing-${getSelectedDoctorName().replace(/\s+/g, '-')}-${selectedMonth || format(new Date(), 'yyyy-MM')}.pdf`;

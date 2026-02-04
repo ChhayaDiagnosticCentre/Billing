@@ -23,7 +23,7 @@ export function AppLayout({ children }: AppLayoutProps) {
               <Menu className="h-5 w-5" />
             </SidebarTrigger>
             <div className="flex flex-1 items-center justify-between">
-              <span className="font-semibold">X-Ray Center</span>
+              <span className="font-semibold">Chhaya Diagnostic Center</span>
               {role && (
                 <Badge variant={role === 'admin' ? 'default' : 'secondary'}>
                   {role}
@@ -31,7 +31,7 @@ export function AppLayout({ children }: AppLayoutProps) {
               )}
             </div>
           </header>
-          
+
           {/* Main content */}
           <main className="flex-1 overflow-auto p-4 lg:p-6">
             {children}

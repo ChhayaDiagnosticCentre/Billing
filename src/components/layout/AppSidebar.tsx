@@ -41,10 +41,16 @@ const adminNavItems = [
 
 export function AppSidebar() {
   const { role, signOut, user } = useAuth();
-  const { state, toggleSidebar } = useSidebar();
+  const { state, toggleSidebar, isMobile, setOpenMobile } = useSidebar();
   const collapsed = state === 'collapsed';
   const location = useLocation();
   const isAdmin = role === 'admin';
+
+  const handleLinkClick = () => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  };
 
   const isActive = (url: string) => {
     if (url === '/') return location.pathname === '/';
@@ -66,8 +72,8 @@ export function AppSidebar() {
           </div>
           {!collapsed && (
             <div className="flex flex-col">
-              <span className="font-semibold text-sidebar-foreground">X-Ray Center</span>
-              <span className="text-xs text-sidebar-foreground/60">Management</span>
+              <span className="font-semibold text-sidebar-foreground">Chhaya Diagnostic Center</span>
+              <span className="text-xs text-sidebar-foreground/60">Tracking System</span>
             </div>
           )}
         </div>
@@ -90,6 +96,7 @@ export function AppSidebar() {
                     <NavLink
                       to={item.url}
                       end={item.url === '/'}
+                      onClick={handleLinkClick}
                       className="flex items-center gap-3 rounded-lg px-3 py-2 text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                       activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                     >
@@ -119,6 +126,7 @@ export function AppSidebar() {
                     >
                       <NavLink
                         to={item.url}
+                        onClick={handleLinkClick}
                         className="flex items-center gap-3 rounded-lg px-3 py-2 text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                         activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                       >
