@@ -24,6 +24,7 @@ import {
   LogOut,
   ScanLine,
   ChevronLeft,
+  Receipt,
 } from 'lucide-react';
 
 const mainNavItems = [
@@ -34,6 +35,7 @@ const mainNavItems = [
 
 const adminNavItems = [
   { title: 'Doctors', url: '/doctors', icon: Stethoscope },
+  { title: 'Billing', url: '/billing', icon: Receipt },
   { title: 'Reports', url: '/reports', icon: FileText },
 ];
 

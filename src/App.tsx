@@ -13,6 +13,7 @@ import RecentEntries from "./pages/RecentEntries";
 import NewVisit from "./pages/NewVisit";
 import Doctors from "./pages/Doctors";
 import Reports from "./pages/Reports";
+import Billing from "./pages/Billing";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -74,6 +75,16 @@ const App = () => (
                 <ProtectedRoute requireAdmin>
                   <AppLayout>
                     <Reports />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/billing"
+              element={
+                <ProtectedRoute requireAdmin>
+                  <AppLayout>
+                    <Billing />
                   </AppLayout>
                 </ProtectedRoute>
               }
