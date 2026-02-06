@@ -198,6 +198,7 @@ export default function RecentEntries() {
                     <TableHead>Date</TableHead>
                     <TableHead>X-Ray Views</TableHead>
                     <TableHead className="text-right">Amount</TableHead>
+                    <TableHead>Received By</TableHead>
                     <TableHead className="w-[80px]"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -219,6 +220,11 @@ export default function RecentEntries() {
                       </TableCell>
                       <TableCell className="text-right font-medium">
                         ₹{visit.total_amount.toFixed(2)}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={visit.fees_received_by === 'CENTER' ? 'default' : 'secondary'}>
+                          {visit.fees_received_by === 'CENTER' ? 'Center' : 'Doctor'}
+                        </Badge>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
@@ -313,6 +319,12 @@ export default function RecentEntries() {
                     </div>
                   </>
                 )}
+                <div className="flex justify-between pt-2 border-t border-primary/10">
+                  <span className="text-sm text-muted-foreground">Received By</span>
+                  <Badge variant={selectedVisit.fees_received_by === 'CENTER' ? 'default' : 'secondary'}>
+                    {selectedVisit.fees_received_by === 'CENTER' ? 'Center' : 'Doctor'}
+                  </Badge>
+                </div>
                 <div className="flex justify-between pt-2 border-t text-xs text-muted-foreground">
                   <span>Created At</span>
                   <span>{format(new Date(selectedVisit.created_at), 'MMM d, yyyy HH:mm')}</span>
