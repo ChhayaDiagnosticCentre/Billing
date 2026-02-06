@@ -30,6 +30,7 @@ import {
 const mainNavItems = [
   { title: 'Dashboard', url: '/', icon: LayoutDashboard },
   { title: 'Recent Entries', url: '/recent', icon: Users },
+  { title: 'Patients', url: '/patients', icon: Users },
   { title: 'New Visit', url: '/visits/new', icon: UserPlus },
 ];
 

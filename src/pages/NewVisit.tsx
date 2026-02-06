@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -48,6 +48,8 @@ type PaymentReceiver = 'CENTER' | 'DOCTOR';
 export default function NewVisit() {
   const { user, role } = useAuth();
   const navigate = useNavigate();
+  const { id } = useParams();
+  const isEditing = Boolean(id);
   const { toast } = useToast();
   const isAdmin = role === 'admin';
   const canEditShares = role === 'admin';
@@ -58,6 +60,7 @@ export default function NewVisit() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [patientOpen, setPatientOpen] = useState(false);
+  const [doctorOpen, setDoctorOpen] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [selectedDoctor, setSelectedDoctor] = useState<string>('');
   const [visitDate, setVisitDate] = useState(format(new Date(), 'yyyy-MM-dd'));
@@ -92,7 +95,53 @@ export default function NewVisit() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+    if (isEditing) {
+      fetchVisitDetails();
+    }
+  }, [id]);
+
+  const fetchVisitDetails = async () => {
+    try {
+      const { data, error } = await (supabase
+        .from('patient_visits' as any)
+        .select(`
+          *,
+          patient:patients(id, name)
+        `)
+        .eq('id', id)
+        .single() as any);
+
+      if (error) throw error;
+      if (data) {
+        setSelectedPatient(data.patient);
+        setSelectedDoctor(data.doctor_id || '');
+        setVisitDate(data.visit_date);
+        setXrayViews(data.xray_views.toString());
+        setTotalAmount(data.total_amount.toString());
+        setFeesReceivedBy(data.fees_received_by);
+
+        // Populate manual shares if they exist or were calculated
+        setManualDoctorShare(data.doctor_share.toString());
+        setManualCenterShare(data.center_share.toString());
+
+        // If shares were manually overridden (not matching default calculation), set isShareOverridden
+        const doctorData = doctors.find(d => d.id === data.doctor_id);
+        const percentage = doctorData?.percentage_share || data.doctor_percentage || 0;
+        const calcDocShare = Math.round(data.total_amount * percentage / 100);
+        if (data.doctor_share !== calcDocShare) {
+          setIsShareOverridden(true);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching visit details:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load visit details',
+        variant: 'destructive',
+      });
+      navigate('/recent');
+    }
+  };
 
   // Reset manual shares when doctor or amount changes (if not overridden)
   useEffect(() => {
@@ -220,16 +269,26 @@ export default function NewVisit() {
         created_by: user?.id || null,
       };
 
-      const { error } = await (supabase.from('patient_visits' as any).insert(visitData) as any);
+      if (isEditing) {
+        const { error } = await (supabase
+          .from('patient_visits' as any)
+          .update(visitData)
+          .eq('id', id) as any);
+        if (error) throw error;
+        toast({
+          title: 'Success',
+          description: 'Visit updated successfully',
+        });
+      } else {
+        const { error } = await (supabase.from('patient_visits' as any).insert(visitData) as any);
+        if (error) throw error;
+        toast({
+          title: 'Success',
+          description: 'Visit recorded successfully',
+        });
+      }
 
-      if (error) throw error;
-
-      toast({
-        title: 'Success',
-        description: 'Visit recorded successfully',
-      });
-
-      navigate('/');
+      navigate('/recent');
     } catch (error) {
       console.error('Error creating visit:', error);
       toast({
@@ -254,8 +313,8 @@ export default function NewVisit() {
     <div className="mx-auto max-w-2xl space-y-6">
       {/* Header */}
       <div>
-        <h1 className="page-title">New Visit</h1>
-        <p className="text-muted-foreground">Record a new X-ray visit and billing</p>
+        <h1 className="page-title">{isEditing ? 'Edit Visit' : 'New Visit'}</h1>
+        <p className="text-muted-foreground">{isEditing ? 'Update existing visit details' : 'Record a new X-ray visit and billing'}</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -386,24 +445,73 @@ export default function NewVisit() {
 
             <div className="space-y-2">
               <Label htmlFor="doctor">Referring Doctor (Optional)</Label>
-              <Select value={selectedDoctor} onValueChange={setSelectedDoctor}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select doctor (walk-in if none)" />
-                </SelectTrigger>
-                <SelectContent>
-                  {doctors.map((doctor) => (
-                    <SelectItem key={doctor.id} value={doctor.id}>
-                      {doctor.name}
-                      {doctor.clinic_name && (
-                        <span className="text-muted-foreground">
-                          {' '}
-                          - {doctor.clinic_name}
-                        </span>
-                      )}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={doctorOpen} onOpenChange={setDoctorOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={doctorOpen}
+                    className="w-full justify-between font-normal"
+                  >
+                    {selectedDoctor ? (
+                      doctors.find((d) => d.id === selectedDoctor)?.name
+                    ) : (
+                      <span className="text-muted-foreground">Select doctor (walk-in if none)</span>
+                    )}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Search doctor..." />
+                    <CommandList>
+                      <CommandEmpty>No doctor found.</CommandEmpty>
+                      <CommandGroup>
+                        <CommandItem
+                          value="walk-in"
+                          onSelect={() => {
+                            setSelectedDoctor('');
+                            setDoctorOpen(false);
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              'mr-2 h-4 w-4',
+                              selectedDoctor === '' ? 'opacity-100' : 'opacity-0'
+                            )}
+                          />
+                          Walk-in (None)
+                        </CommandItem>
+                        {doctors.map((doctor) => (
+                          <CommandItem
+                            key={doctor.id}
+                            value={doctor.name}
+                            onSelect={() => {
+                              setSelectedDoctor(doctor.id);
+                              setDoctorOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                'mr-2 h-4 w-4',
+                                selectedDoctor === doctor.id ? 'opacity-100' : 'opacity-0'
+                              )}
+                            />
+                            <div className="flex flex-col">
+                              <span>{doctor.name}</span>
+                              {doctor.clinic_name && (
+                                <span className="text-xs text-muted-foreground">
+                                  {doctor.clinic_name}
+                                </span>
+                              )}
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
           </CardContent>
         </Card>
@@ -424,9 +532,14 @@ export default function NewVisit() {
                   id="amount"
                   type="number"
                   min="0"
-                  step="0.01"
+                  step="1"
                   value={totalAmount}
-                  onChange={(e) => setTotalAmount(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === '' || /^\d+$/.test(val)) {
+                      setTotalAmount(val);
+                    }
+                  }}
                   placeholder="Enter amount"
                   required
                 />
@@ -544,7 +657,7 @@ export default function NewVisit() {
           </Button>
           <Button type="submit" className="flex-1" disabled={isSubmitting}>
             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Record Visit
+            {isEditing ? 'Update Visit' : 'Record Visit'}
           </Button>
         </div>
       </form>

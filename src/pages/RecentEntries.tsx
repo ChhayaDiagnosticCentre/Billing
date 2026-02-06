@@ -31,7 +31,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Search, Calendar, Loader2, IndianRupee, User, Stethoscope, Eye, Trash2 } from 'lucide-react';
+import { Search, Calendar, Loader2, IndianRupee, User, Stethoscope, Eye, Trash2, Edit } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface Visit {
@@ -313,13 +313,23 @@ export default function RecentEntries() {
                     </div>
                   </>
                 )}
-                <div className="flex justify-between pt-2 border-t">
-                  <span className="text-sm text-muted-foreground">Received By</span>
-                  <Badge variant={selectedVisit.fees_received_by === 'CENTER' ? 'default' : 'secondary'}>
-                    {selectedVisit.fees_received_by === 'CENTER' ? 'Center' : 'Doctor'}
-                  </Badge>
+                <div className="flex justify-between pt-2 border-t text-xs text-muted-foreground">
+                  <span>Created At</span>
+                  <span>{format(new Date(selectedVisit.created_at), 'MMM d, yyyy HH:mm')}</span>
                 </div>
               </div>
+
+              {isAdmin && (
+                <div className="pt-4 flex gap-2">
+                  <Button
+                    className="flex-1 gap-2"
+                    onClick={() => navigate(`/visits/edit/${selectedVisit.id}`)}
+                  >
+                    <Edit className="h-4 w-4" />
+                    Edit Record
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </DialogContent>

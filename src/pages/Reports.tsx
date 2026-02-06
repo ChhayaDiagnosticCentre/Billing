@@ -67,7 +67,7 @@ export default function Reports() {
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
 
   const monthOptions = Array.from({ length: 12 }, (_, i) => {
-    const date = subMonths(new Date(), i);
+    const date = subMonths(new Date(), 11 - i);
     return {
       value: format(date, 'yyyy-MM'),
       label: format(date, 'MMMM yyyy'),

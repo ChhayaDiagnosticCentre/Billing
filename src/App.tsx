@@ -11,6 +11,7 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import RecentEntries from "./pages/RecentEntries";
 import NewVisit from "./pages/NewVisit";
+import Patients from "./pages/Patients";
 import Doctors from "./pages/Doctors";
 import Reports from "./pages/Reports";
 import Billing from "./pages/Billing";
@@ -27,7 +28,7 @@ const App = () => (
         <AuthProvider>
           <Routes>
             <Route path="/login" element={<Login />} />
-            
+
             {/* Protected routes with layout */}
             <Route
               path="/"
@@ -55,6 +56,26 @@ const App = () => (
                 <ProtectedRoute>
                   <AppLayout>
                     <NewVisit />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/visits/edit/:id"
+              element={
+                <ProtectedRoute requireAdmin>
+                  <AppLayout>
+                    <NewVisit />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/patients"
+              element={
+                <ProtectedRoute>
+                  <AppLayout>
+                    <Patients />
                   </AppLayout>
                 </ProtectedRoute>
               }

@@ -23,6 +23,14 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -50,6 +58,8 @@ import {
   Loader2,
   ArrowUpRight,
   ArrowDownLeft,
+  Check,
+  ChevronsUpDown,
 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, subMonths, parseISO } from 'date-fns';
 import jsPDF from 'jspdf';
@@ -106,6 +116,7 @@ export default function Billing() {
   const [visits, setVisits] = useState<VisitRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedDoctor, setSelectedDoctor] = useState<string>('');
+  const [doctorOpen, setDoctorOpen] = useState(false);
 
   // Date filters
   const [fromDate, setFromDate] = useState<Date | undefined>(startOfMonth(new Date()));
@@ -113,9 +124,10 @@ export default function Billing() {
   const [selectedMonth, setSelectedMonth] = useState<string>(format(new Date(), 'yyyy-MM'));
   const [filterMode, setFilterMode] = useState<'range' | 'month'>('month');
 
-  // Month options for dropdown
+  // Month options for dropdown (past 12 months, in chronological order)
   const monthOptions = Array.from({ length: 12 }, (_, i) => {
-    const date = subMonths(new Date(), i);
+    // Start from 11 months ago and move to current month
+    const date = subMonths(new Date(), 11 - i);
     return {
       value: format(date, 'yyyy-MM'),
       label: format(date, 'MMMM yyyy'),
@@ -388,24 +400,61 @@ export default function Billing() {
             {/* Doctor Selection */}
             <div className="space-y-2">
               <Label>Select Doctor</Label>
-              <Select value={selectedDoctor} onValueChange={setSelectedDoctor}>
-                <SelectTrigger>
-                  <Stethoscope className="mr-2 h-4 w-4" />
-                  <SelectValue placeholder="Choose a doctor" />
-                </SelectTrigger>
-                <SelectContent>
-                  {doctors.map((doctor) => (
-                    <SelectItem key={doctor.id} value={doctor.id}>
-                      {doctor.name}
-                      {doctor.clinic_name && (
-                        <span className="ml-1 text-muted-foreground">
-                          ({doctor.clinic_name})
-                        </span>
-                      )}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={doctorOpen} onOpenChange={setDoctorOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={doctorOpen}
+                    className="w-full justify-between font-normal"
+                  >
+                    <div className="flex items-center overflow-hidden">
+                      <Stethoscope className="mr-2 h-4 w-4 shrink-0" />
+                      <span className="truncate">
+                        {selectedDoctor
+                          ? doctors.find((d) => d.id === selectedDoctor)?.name
+                          : 'Choose a doctor'}
+                      </span>
+                    </div>
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Search doctor..." />
+                    <CommandList>
+                      <CommandEmpty>No doctor found.</CommandEmpty>
+                      <CommandGroup>
+                        {doctors.map((doctor) => (
+                          <CommandItem
+                            key={doctor.id}
+                            value={doctor.name}
+                            onSelect={() => {
+                              setSelectedDoctor(doctor.id);
+                              setDoctorOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                'mr-2 h-4 w-4',
+                                selectedDoctor === doctor.id ? 'opacity-100' : 'opacity-0'
+                              )}
+                            />
+                            <div className="flex flex-col">
+                              <span>{doctor.name}</span>
+                              {doctor.clinic_name && (
+                                <span className="text-xs text-muted-foreground">
+                                  {doctor.clinic_name}
+                                </span>
+                              )}
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
 
             {/* Filter Mode Toggle */}

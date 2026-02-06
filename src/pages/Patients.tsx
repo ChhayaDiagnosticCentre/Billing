@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -21,7 +22,7 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Search, Users, Loader2 } from 'lucide-react';
+import { Plus, Search, Users, Loader2, Edit2 } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface Patient {
@@ -31,11 +32,15 @@ interface Patient {
 }
 
 export default function Patients() {
+  const { role } = useAuth();
+  const isAdmin = role === 'admin';
   const [patients, setPatients] = useState<Patient[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
   const { toast } = useToast();
 
   // Form state
@@ -52,7 +57,7 @@ export default function Patients() {
       const { data, error } = await (supabase
         .from('patients' as any)
         .select('*')
-        .order('created_at', { ascending: false }) as any);
+        .order('name', { ascending: true }) as any);
 
       if (error) throw error;
       setPatients((data as Patient[]) || []);
@@ -73,30 +78,47 @@ export default function Patients() {
     setIsSubmitting(true);
 
     try {
-      const { error } = await (supabase.from('patients' as any).insert({
-        name: formData.name,
-      }) as any);
-
-      if (error) throw error;
-
-      toast({
-        title: 'Success',
-        description: 'Patient added successfully',
-      });
+      if (editingPatient) {
+        const { error } = await (supabase.from('patients' as any)
+          .update({ name: formData.name })
+          .eq('id', editingPatient.id) as any);
+        if (error) throw error;
+        toast({
+          title: 'Success',
+          description: 'Patient updated successfully',
+        });
+      } else {
+        const { error } = await (supabase.from('patients' as any).insert({
+          name: formData.name,
+        }) as any);
+        if (error) throw error;
+        toast({
+          title: 'Success',
+          description: 'Patient added successfully',
+        });
+      }
 
       setFormData({ name: '' });
       setIsAddOpen(false);
+      setIsEditOpen(false);
+      setEditingPatient(null);
       fetchPatients();
     } catch (error) {
-      console.error('Error adding patient:', error);
+      console.error('Error saving patient:', error);
       toast({
         title: 'Error',
-        description: 'Failed to add patient',
+        description: `Failed to ${editingPatient ? 'update' : 'add'} patient`,
         variant: 'destructive',
       });
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleEdit = (patient: Patient) => {
+    setEditingPatient(patient);
+    setFormData({ name: patient.name });
+    setIsEditOpen(true);
   };
 
   const filteredPatients = patients.filter((patient) =>
@@ -200,15 +222,28 @@ export default function Patients() {
                   <TableRow>
                     <TableHead>Name</TableHead>
                     <TableHead>Added</TableHead>
+                    {isAdmin && <TableHead className="w-[100px] text-right">Actions</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredPatients.map((patient) => (
                     <TableRow key={patient.id}>
                       <TableCell className="font-medium">{patient.name}</TableCell>
-                      <TableCell className="text-muted-foreground">
+                      <TableCell className="text-muted-foreground text-sm">
                         {format(new Date(patient.created_at), 'MMM d, yyyy')}
                       </TableCell>
+                      {isAdmin && (
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleEdit(patient)}
+                            className="h-8 w-8 text-muted-foreground hover:text-primary"
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))}
                 </TableBody>
@@ -217,6 +252,48 @@ export default function Patients() {
           )}
         </CardContent>
       </Card>
+
+      {/* Edit Dialog */}
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Patient</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-name">Full Name *</Label>
+              <Input
+                id="edit-name"
+                value={formData.name}
+                onChange={(e) =>
+                  setFormData({ ...formData, name: e.target.value })
+                }
+                placeholder="Enter patient name"
+                required
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setIsEditOpen(false);
+                  setEditingPatient(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
+                Save Changes
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
