@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Table,
   TableBody,
@@ -117,6 +118,7 @@ export default function Billing() {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedDoctor, setSelectedDoctor] = useState<string>('');
   const [doctorOpen, setDoctorOpen] = useState(false);
+  const [hideTitle, setHideTitle] = useState(false);
 
   // Date filters
   const [fromDate, setFromDate] = useState<Date | undefined>(startOfMonth(new Date()));
@@ -290,15 +292,17 @@ export default function Billing() {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
 
-    // Title
-    doc.setFontSize(20);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Billing & Settlement Report', pageWidth / 2, 20, { align: 'center' });
+    // Title and Subtitle
+    if (!hideTitle) {
+      doc.setFontSize(20);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Billing & Settlement Report', pageWidth / 2, 20, { align: 'center' });
 
-    // Subtitle with timestamp
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Generated on: ${format(new Date(), 'dd MMM yyyy, hh:mm a')}`, pageWidth / 2, 32, { align: 'center' });
+      // Subtitle with timestamp
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Generated on: ${format(new Date(), 'dd MMM yyyy, hh:mm a')}`, pageWidth / 2, 32, { align: 'center' });
+    }
 
     // Filters
     doc.setFontSize(12);
@@ -561,30 +565,50 @@ export default function Billing() {
               </Badge>
             </CardTitle>
             {visits.length > 0 && (
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button className="gap-2">
-                    <Download className="h-4 w-4" />
-                    Generate PDF
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Generate PDF Report</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This will generate a PDF report with the current billing data for{' '}
-                      <strong>{getSelectedDoctorName()}</strong> for the period{' '}
-                      <strong>{getFilterPeriodText()}</strong>.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={generatePDF}>
-                      Download PDF
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="hideTitle"
+                    checked={hideTitle}
+                    onCheckedChange={(checked) => setHideTitle(!!checked)}
+                  />
+                  <Label
+                    htmlFor="hideTitle"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                  >
+                    hide title on pdf report
+                  </Label>
+                </div>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button className="gap-2">
+                      <Download className="h-4 w-4" />
+                      Generate PDF
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Generate PDF Report</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will generate a PDF report with the current billing data for{' '}
+                        <strong>{getSelectedDoctorName()}</strong> for the period{' '}
+                        <strong>{getFilterPeriodText()}</strong>.
+                        {hideTitle && (
+                          <span className="block mt-2 text-primary font-medium">
+                            Note: Title will be hidden on the report.
+                          </span>
+                        )}
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={generatePDF}>
+                        Download PDF
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
             )}
           </CardHeader>
           <CardContent className="p-0">
