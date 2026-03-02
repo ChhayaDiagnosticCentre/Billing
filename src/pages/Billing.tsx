@@ -576,7 +576,7 @@ export default function Billing() {
                     htmlFor="hideTitle"
                     className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
                   >
-                    hide title on pdf report
+                    hide title on pdf
                   </Label>
                 </div>
                 <AlertDialog>
