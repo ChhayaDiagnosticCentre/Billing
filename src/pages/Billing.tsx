@@ -356,21 +356,27 @@ export default function Billing() {
     doc.setFontSize(10);
 
     const summaryStartY = finalY + 8;
-    doc.text(`Doctor's Share (Collected by Center): ${formatCurrencyPDF(settlement.ownerOwesToDoctor)}`, 14, summaryStartY);
-    doc.text(`Center's Share (Collected by Doctor): ${formatCurrencyPDF(settlement.doctorOwesToOwner)}`, 14, summaryStartY + 8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(22, 163, 74); // Success green
+    doc.text(`Doctor's Total Compensation: ${formatCurrencyPDF(settlement.totalDoctorShare)}`, 14, summaryStartY);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(0, 0, 0);
+    doc.text(`Doctor's Share (Collected by Center): ${formatCurrencyPDF(settlement.ownerOwesToDoctor)}`, 14, summaryStartY + 8);
+    doc.text(`Center's Share (Collected by Doctor): ${formatCurrencyPDF(settlement.doctorOwesToOwner)}`, 14, summaryStartY + 16);
 
     // Net
     doc.setFont('helvetica', 'bold');
     if (settlement.ownerOwesToDoctor >= settlement.doctorOwesToOwner) {
-      doc.text(`Final Net Settlement: Give ${formatCurrencyPDF(settlement.ownerOwesToDoctor - settlement.doctorOwesToOwner)} to Doctor`, 14, summaryStartY + 18);
+      doc.text(`Final Net Settlement: Give ${formatCurrencyPDF(settlement.ownerOwesToDoctor - settlement.doctorOwesToOwner)} to Doctor`, 14, summaryStartY + 26);
     } else {
-      doc.text(`Final Net Settlement: Receive ${formatCurrencyPDF(settlement.doctorOwesToOwner - settlement.ownerOwesToDoctor)} from Doctor`, 14, summaryStartY + 18);
+      doc.text(`Final Net Settlement: Receive ${formatCurrencyPDF(settlement.doctorOwesToOwner - settlement.ownerOwesToDoctor)} from Doctor`, 14, summaryStartY + 26);
     }
 
     // Final Thank You
     doc.setFontSize(14);
     doc.setFont('helvetica');
-    doc.text('Thank You!', pageWidth / 2, summaryStartY + 30, { align: 'center' });
+    doc.text('Thank You!', pageWidth / 2, summaryStartY + 38, { align: 'center' });
 
     // Save PDF
     const timestamp = format(new Date(), 'yyyyMMdd-HHmmss');
