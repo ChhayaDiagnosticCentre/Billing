@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -14,6 +14,13 @@ import {
 } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Dialog,
   DialogContent,
@@ -31,7 +38,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Search, Calendar, Loader2, IndianRupee, User, Stethoscope, Eye, Trash2, Edit } from 'lucide-react';
+import { Search, Calendar, Loader2, IndianRupee, User, Stethoscope, Eye, Trash2, Edit, ArrowUpDown } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface Visit {
@@ -54,6 +61,21 @@ interface Visit {
   } | null;
 }
 
+type SortOption = 'created_at_desc' | 'created_at_asc' | 'visit_date_desc' | 'visit_date_asc' | 'patient_asc' | 'patient_desc' | 'amount_desc' | 'amount_asc' | 'xray_views_desc' | 'xray_views_asc';
+
+const SORT_OPTIONS: { value: SortOption; label: string }[] = [
+  { value: 'created_at_desc', label: 'Entry Date (Newest)' },
+  { value: 'created_at_asc', label: 'Entry Date (Oldest)' },
+  { value: 'visit_date_desc', label: 'Visit Date (Newest)' },
+  { value: 'visit_date_asc', label: 'Visit Date (Oldest)' },
+  { value: 'patient_asc', label: 'Patient Name (A-Z)' },
+  { value: 'patient_desc', label: 'Patient Name (Z-A)' },
+  { value: 'amount_desc', label: 'Amount (High-Low)' },
+  { value: 'amount_asc', label: 'Amount (Low-High)' },
+  { value: 'xray_views_desc', label: 'X-Ray Views (High-Low)' },
+  { value: 'xray_views_asc', label: 'X-Ray Views (Low-High)' },
+];
+
 export default function RecentEntries() {
   const navigate = useNavigate();
   const { role } = useAuth();
@@ -61,6 +83,7 @@ export default function RecentEntries() {
   const [visits, setVisits] = useState<Visit[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState<SortOption>('created_at_desc');
   const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null);
   const [visitToDelete, setVisitToDelete] = useState<Visit | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -86,7 +109,6 @@ export default function RecentEntries() {
           patient:patients!patient_id(id, name),
           doctor:doctors!doctor_id(id, name, clinic_name)
         `)
-        .order('visit_date', { ascending: false })
         .order('created_at', { ascending: false }) as any);
 
       if (error) throw error;
@@ -103,9 +125,38 @@ export default function RecentEntries() {
     }
   };
 
-  const filteredVisits = visits.filter((visit) =>
-    visit.patient?.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredVisits = useMemo(() => {
+    const filtered = visits.filter((visit) =>
+      visit.patient?.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    return [...filtered].sort((a, b) => {
+      switch (sortBy) {
+        case 'created_at_desc':
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        case 'created_at_asc':
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        case 'visit_date_desc':
+          return new Date(b.visit_date).getTime() - new Date(a.visit_date).getTime();
+        case 'visit_date_asc':
+          return new Date(a.visit_date).getTime() - new Date(b.visit_date).getTime();
+        case 'patient_asc':
+          return (a.patient?.name || '').localeCompare(b.patient?.name || '');
+        case 'patient_desc':
+          return (b.patient?.name || '').localeCompare(a.patient?.name || '');
+        case 'amount_desc':
+          return b.total_amount - a.total_amount;
+        case 'amount_asc':
+          return a.total_amount - b.total_amount;
+        case 'xray_views_desc':
+          return b.xray_views - a.xray_views;
+        case 'xray_views_asc':
+          return a.xray_views - b.xray_views;
+        default:
+          return 0;
+      }
+    });
+  }, [visits, searchQuery, sortBy]);
 
   const handleDeleteVisit = async () => {
     if (!visitToDelete) return;
@@ -175,9 +226,26 @@ export default function RecentEntries() {
           <CardTitle className="flex items-center gap-2 text-lg">
             <Calendar className="h-5 w-5 text-primary" />
             Visit Records
-            <Badge variant="secondary" className="ml-auto">
-              {filteredVisits.length} entries
-            </Badge>
+            <div className="ml-auto flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+                <Select value={sortBy} onValueChange={(val) => setSortBy(val as SortOption)}>
+                  <SelectTrigger className="w-[200px] h-8 text-sm font-normal">
+                    <SelectValue placeholder="Sort by..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SORT_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Badge variant="secondary">
+                {filteredVisits.length} entries
+              </Badge>
+            </div>
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
@@ -195,7 +263,7 @@ export default function RecentEntries() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Patient</TableHead>
-                    <TableHead>Date</TableHead>
+                    <TableHead>Visit Date</TableHead>
                     <TableHead>X-Ray Views</TableHead>
                     <TableHead className="text-right">Amount</TableHead>
                     <TableHead>Received By</TableHead>
