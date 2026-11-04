@@ -89,13 +89,24 @@ export default function RecentEntries() {
   const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
 
+  // Debounced server-side search: re-query the database when the search text changes
   useEffect(() => {
-    fetchVisits();
-  }, []);
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      fetchVisits(searchQuery.trim(), () => cancelled);
+    }, searchQuery ? 300 : 0);
 
-  const fetchVisits = async () => {
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [searchQuery]);
+
+  const fetchVisits = async (search: string, isStale: () => boolean) => {
     try {
-      const { data, error } = await (supabase
+      // Inner join on patient only when searching, so the name filter restricts the visit rows
+      const patientJoin = search ? 'patients!patient_id!inner' : 'patients!patient_id';
+      let query = supabase
         .from('patient_visits' as any)
         .select(`
           id,
@@ -106,14 +117,23 @@ export default function RecentEntries() {
           center_share,
           fees_received_by,
           created_at,
-          patient:patients!patient_id(id, name),
+          patient:${patientJoin}(id, name),
           doctor:doctors!doctor_id(id, name, clinic_name)
-        `)
-        .order('created_at', { ascending: false }) as any);
+        `) as any;
 
+      if (search) {
+        // Escape LIKE wildcards so they are matched literally
+        const escaped = search.replace(/[\\%_]/g, '\\$&');
+        query = query.ilike('patient.name', `%${escaped}%`);
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
+
+      if (isStale()) return;
       if (error) throw error;
       setVisits((data as Visit[]) || []);
     } catch (error) {
+      if (isStale()) return;
       console.error('Error fetching visits:', error);
       toast({
         title: 'Error',
@@ -121,16 +141,12 @@ export default function RecentEntries() {
         variant: 'destructive',
       });
     } finally {
-      setIsLoading(false);
+      if (!isStale()) setIsLoading(false);
     }
   };
 
   const filteredVisits = useMemo(() => {
-    const filtered = visits.filter((visit) =>
-      visit.patient?.name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-
-    return [...filtered].sort((a, b) => {
+    return [...visits].sort((a, b) => {
       switch (sortBy) {
         case 'created_at_desc':
           return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
@@ -156,7 +172,7 @@ export default function RecentEntries() {
           return 0;
       }
     });
-  }, [visits, searchQuery, sortBy]);
+  }, [visits, sortBy]);
 
   const handleDeleteVisit = async () => {
     if (!visitToDelete) return;
