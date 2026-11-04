@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -36,6 +36,7 @@ export default function Patients() {
   const isAdmin = role === 'admin';
   const [patients, setPatients] = useState<Patient[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const latestRequestId = useRef(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -48,20 +49,35 @@ export default function Patients() {
     name: '',
   });
 
+  // Debounced server-side search: re-query the database when the search text changes
   useEffect(() => {
-    fetchPatients();
-  }, []);
+    const timer = setTimeout(fetchPatients, searchQuery ? 300 : 0);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const fetchPatients = async () => {
-    try {
-      const { data, error } = await (supabase
-        .from('patients' as any)
-        .select('*')
-        .order('name', { ascending: true }) as any);
+    const requestId = ++latestRequestId.current;
+    const search = searchQuery.trim();
 
+    try {
+      let query = supabase
+        .from('patients' as any)
+        .select('*') as any;
+
+      if (search) {
+        // Escape LIKE wildcards so they are matched literally
+        const escaped = search.replace(/[\\%_]/g, '\\$&');
+        query = query.ilike('name', `%${escaped}%`);
+      }
+
+      const { data, error } = await query.order('name', { ascending: true });
+
+      // Ignore responses from superseded requests
+      if (requestId !== latestRequestId.current) return;
       if (error) throw error;
       setPatients((data as Patient[]) || []);
     } catch (error) {
+      if (requestId !== latestRequestId.current) return;
       console.error('Error fetching patients:', error);
       toast({
         title: 'Error',
@@ -69,7 +85,7 @@ export default function Patients() {
         variant: 'destructive',
       });
     } finally {
-      setIsLoading(false);
+      if (requestId === latestRequestId.current) setIsLoading(false);
     }
   };
 
@@ -121,9 +137,7 @@ export default function Patients() {
     setIsEditOpen(true);
   };
 
-  const filteredPatients = patients.filter((patient) =>
-    patient.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredPatients = patients;
 
   return (
     <div className="space-y-6">
